@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "chestitemfinder",
+  "version": "${version}",
+  "name": "ChestItemFinder",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/chestitemfinder/icon.png",
+  "environment": "server",
+  "entrypoints": {
+    "main": [
+      "space.ranzeplay.chestitemfinder.Main"
+    ]
+  },
+  "mixins": [
+    "chestitemfinder.mixins.json",
+    {
+      "config": "chestitemfinder.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
