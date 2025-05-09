@@ -1,4 +1,4 @@
-package space.ranzeplay.chestitemfinder.service;
+package space.ranzeplay.containeritemfinder.service;
 
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.block.entity.ShulkerBoxBlockEntity;

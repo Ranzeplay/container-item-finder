@@ -1,23 +1,23 @@
 {
   "schemaVersion": 1,
-  "id": "chestitemfinder",
+  "id": "containeritemfinder",
   "version": "${version}",
-  "name": "ChestItemFinder",
+  "name": "ContainerItemFinder",
   "description": "",
   "authors": [],
   "contact": {},
   "license": "MIT",
-  "icon": "assets/chestitemfinder/icon.png",
+  "icon": "assets/containeritemfinder/icon.png",
   "environment": "server",
   "entrypoints": {
     "main": [
-      "space.ranzeplay.chestitemfinder.Main"
+      "space.ranzeplay.containeritemfinder.Main"
     ]
   },
   "mixins": [
-    "chestitemfinder.mixins.json",
+    "containeritemfinder.mixins.json",
     {
-      "config": "chestitemfinder.client.mixins.json",
+      "config": "containeritemfinder.client.mixins.json",
       "environment": "client"
     }
   ],

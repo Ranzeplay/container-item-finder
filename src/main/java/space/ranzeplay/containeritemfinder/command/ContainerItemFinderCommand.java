@@ -1,15 +1,15 @@
-package space.ranzeplay.chestitemfinder.command;
+package space.ranzeplay.containeritemfinder.command;
 
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.ItemStackArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
-import space.ranzeplay.chestitemfinder.service.ChestSearchService;
+import space.ranzeplay.containeritemfinder.service.ChestSearchService;
 import net.minecraft.text.Text;
 
-public class ChestItemFinderCommand {
+public class ContainerItemFinderCommand {
     private final ChestSearchService searchService;
 
-    public ChestItemFinderCommand(ChestSearchService searchService) {
+    public ContainerItemFinderCommand(ChestSearchService searchService) {
         this.searchService = searchService;
     }
 

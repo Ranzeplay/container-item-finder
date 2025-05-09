@@ -1,7 +1,7 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "space.ranzeplay.chestitemfinder.mixin",
+  "package": "space.ranzeplay.containeritemfinder.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
   ],
