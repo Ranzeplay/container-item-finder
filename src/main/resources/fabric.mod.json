@@ -4,7 +4,7 @@
   "version": "${version}",
   "name": "ContainerItemFinder",
   "description": "",
-  "authors": [],
+  "authors": ["Jeb Feng"],
   "contact": {},
   "license": "MIT",
   "icon": "assets/containeritemfinder/icon.png",
