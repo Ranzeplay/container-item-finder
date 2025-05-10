@@ -5,6 +5,7 @@ import net.minecraft.command.argument.ItemStackArgumentType;
 import net.minecraft.server.command.CommandManager;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import space.ranzeplay.containeritemfinder.Main;
 import space.ranzeplay.containeritemfinder.service.ChestSearchService;
 import net.minecraft.text.Text;
 
@@ -16,6 +17,7 @@ public class ContainerItemFinderCommand {
     }
 
     public void register() {
+        Main.getLogger().info("Registering commands");
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(
                 CommandManager.literal("cif")

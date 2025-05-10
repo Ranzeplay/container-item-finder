@@ -8,18 +8,13 @@
   "contact": {},
   "license": "MIT",
   "icon": "assets/containeritemfinder/icon.png",
-  "environment": "server",
   "entrypoints": {
     "main": [
       "space.ranzeplay.containeritemfinder.Main"
     ]
   },
   "mixins": [
-    "containeritemfinder.mixins.json",
-    {
-      "config": "containeritemfinder.client.mixins.json",
-      "environment": "client"
-    }
+    "containeritemfinder.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=${loader_version}",
