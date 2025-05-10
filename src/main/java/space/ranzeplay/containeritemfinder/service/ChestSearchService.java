@@ -3,7 +3,6 @@ package space.ranzeplay.containeritemfinder.service;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.block.entity.ShulkerBoxBlockEntity;
-import net.minecraft.item.BundleItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
@@ -19,9 +18,7 @@ import java.util.List;
 public class ChestSearchService {
 
     private int countItemsInStack(ItemStack stack, Item targetItem) {
-        if (stack.getItem() instanceof BundleItem bundle) {
-            return 0;
-        } else if (stack.getItem().getTranslationKey().equals(targetItem.getTranslationKey())) {
+        if (stack.getItem().getTranslationKey().equals(targetItem.getTranslationKey())) {
             return stack.getCount();
         } else {
             return 0;
@@ -49,22 +46,76 @@ public class ChestSearchService {
     private List<BlockPos> findContainersInRange(ServerWorld world, BlockPos center, int range, Item targetItem) {
         List<BlockPos> containers = new ArrayList<>();
 
-        for (int x = center.getX() - range; x <= center.getX() + range; x++) {
-            for (int y = center.getY() - range; y <= center.getY() + range; y++) {
-                for (int z = center.getZ() - range; z <= center.getZ() + range; z++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    BlockEntity blockEntity = world.getBlockEntity(pos);
+        // Start from center
+        int x = center.getX();
+        int y = center.getY();
+        int z = center.getZ();
 
-                    if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
-                        if (countItemsInContainer(blockEntity, targetItem) > 0) {
-                            containers.add(pos);
-                        }
-                    }
+        // Spiral search pattern
+        for (int layer = 0; layer <= range; layer++) {
+            // Search each layer in a clockwise spiral
+            for (int dx = -layer; dx <= layer; dx++) {
+                // Top edge
+                BlockPos pos = new BlockPos(x + dx, y + layer, z - layer);
+                checkAndAddContainer(world, pos, containers, targetItem);
+            }
+
+            for (int dz = -layer + 1; dz <= layer; dz++) {
+                // Right edge
+                BlockPos pos = new BlockPos(x + layer, y + layer, z + dz);
+                checkAndAddContainer(world, pos, containers, targetItem);
+            }
+
+            for (int dx = layer - 1; dx >= -layer; dx--) {
+                // Bottom edge
+                BlockPos pos = new BlockPos(x + dx, y + layer, z + layer);
+                checkAndAddContainer(world, pos, containers, targetItem);
+            }
+
+            for (int dz = layer - 1; dz > -layer; dz--) {
+                // Left edge
+                BlockPos pos = new BlockPos(x - layer, y + layer, z + dz);
+                checkAndAddContainer(world, pos, containers, targetItem);
+            }
+
+            // Search lower layers
+            for (int dy = layer - 1; dy >= -layer; dy--) {
+                // Top edge
+                for (int dx = -layer; dx <= layer; dx++) {
+                    BlockPos pos = new BlockPos(x + dx, y + dy, z - layer);
+                    checkAndAddContainer(world, pos, containers, targetItem);
+                }
+
+                // Right edge
+                for (int dz = -layer + 1; dz <= layer; dz++) {
+                    BlockPos pos = new BlockPos(x + layer, y + dy, z + dz);
+                    checkAndAddContainer(world, pos, containers, targetItem);
+                }
+
+                // Bottom edge
+                for (int dx = layer - 1; dx >= -layer; dx--) {
+                    BlockPos pos = new BlockPos(x + dx, y + dy, z + layer);
+                    checkAndAddContainer(world, pos, containers, targetItem);
+                }
+
+                // Left edge
+                for (int dz = layer - 1; dz > -layer; dz--) {
+                    BlockPos pos = new BlockPos(x - layer, y + dy, z + dz);
+                    checkAndAddContainer(world, pos, containers, targetItem);
                 }
             }
         }
 
         return containers;
+    }
+
+    private void checkAndAddContainer(ServerWorld world, BlockPos pos, List<BlockPos> containers, Item targetItem) {
+        BlockEntity blockEntity = world.getBlockEntity(pos);
+        if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
+            if (countItemsInContainer(blockEntity, targetItem) > 0) {
+                containers.add(pos);
+            }
+        }
     }
 
     private List<BlockPos> filterContainersByRequiredCount(ServerWorld world, List<BlockPos> containers, Item targetItem, int requiredCount) {
