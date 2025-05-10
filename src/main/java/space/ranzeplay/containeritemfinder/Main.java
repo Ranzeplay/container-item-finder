@@ -1,8 +1,6 @@
 package space.ranzeplay.containeritemfinder;
 
 import net.fabricmc.api.ModInitializer;
-import net.minecraft.server.MinecraftServer;
-import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import space.ranzeplay.containeritemfinder.command.ContainerItemFinderCommand;

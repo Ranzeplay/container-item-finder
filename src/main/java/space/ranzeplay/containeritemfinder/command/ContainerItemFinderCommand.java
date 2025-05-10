@@ -3,6 +3,10 @@ package space.ranzeplay.containeritemfinder.command;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.ItemStackArgumentType;
 import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.item.Item;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import space.ranzeplay.containeritemfinder.Main;
@@ -14,6 +18,14 @@ public class ContainerItemFinderCommand {
 
     public ContainerItemFinderCommand(ChestSearchService searchService) {
         this.searchService = searchService;
+    }
+
+    private void executeSearch(ServerCommandSource source, ServerWorld world, Vec3d pos, int range, Item item, int count) {
+        new Thread(() -> {
+            source.sendMessage(Text.literal("Searching for items..."));
+            Text result = searchService.searchChests(world, pos, range, item, count);
+            source.sendMessage(result);
+        }).start();
     }
 
     public void register() {
@@ -30,13 +42,7 @@ public class ContainerItemFinderCommand {
                                 var world = source.getWorld();
                                 var pos = source.getPosition();
                                 
-                                // Schedule the search in a separate thread
-                                source.getServer().execute(() -> {
-                                    source.sendMessage(Text.literal("Searching for items..."));
-                                    Text result = searchService.searchChests(world, pos, range, item.getItem(), -1);
-                                    source.sendMessage(result);
-                                });
-                                
+                                executeSearch(source, world, pos, range, item.getItem(), -1);
                                 return 1;
                             })
                             .then(CommandManager.argument("count", IntegerArgumentType.integer(1))
@@ -48,13 +54,7 @@ public class ContainerItemFinderCommand {
                                     var world = source.getWorld();
                                     var pos = source.getPosition();
                                     
-                                    // Schedule the search in a separate thread
-                                    source.getServer().execute(() -> {
-                                        source.sendMessage(Text.literal("Searching for items..."));
-                                        Text result = searchService.searchChests(world, pos, range, item.getItem(), count);
-                                        source.sendMessage(result);
-                                    });
-                                    
+                                    executeSearch(source, world, pos, range, item.getItem(), count);
                                     return 1;
                                 })
                             )
