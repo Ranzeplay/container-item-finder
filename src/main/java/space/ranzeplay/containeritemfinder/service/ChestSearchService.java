@@ -120,6 +120,19 @@ public class ChestSearchService {
                             .formatted(Formatting.RED));
         }
 
+        // Calculate distances
+        double minDistance = Double.MAX_VALUE;
+        double maxDistance = 0;
+        for (ContainerInfo container : foundContainers) {
+            double distance = Math.sqrt(
+                container.pos.getX() * container.pos.getX() +
+                container.pos.getY() * container.pos.getY() +
+                container.pos.getZ() * container.pos.getZ()
+            );
+            minDistance = Math.min(minDistance, distance);
+            maxDistance = Math.max(maxDistance, distance);
+        }
+
         MutableText message;
         if (requiredCount > 0 && totalFound < requiredCount) {
             message = Text.literal("Found ")
@@ -138,6 +151,10 @@ public class ChestSearchService {
                     .append(Text.literal(" in " + foundContainers.size() + " containers at positions: ")
                             .formatted(Formatting.GREEN));
         }
+
+        // Add distance range information
+        message.append(Text.literal(String.format(" (%.1f~%.1fm) ", minDistance, maxDistance))
+                .formatted(Formatting.GRAY));
 
         for (ContainerInfo container : foundContainers) {
             message.append(Text.literal(String.format("[%d, %d, %d] ", 
