@@ -12,21 +12,17 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 
 public class ChestSearchService {
+
+    private record ContainerInfo(BlockPos pos, int itemCount) {}
 
     private int countItemsInStack(ItemStack stack, Item targetItem) {
         if (stack.getItem().getTranslationKey().equals(targetItem.getTranslationKey())) {
             return stack.getCount();
-        } else {
-            return 0;
         }
+        return 0;
     }
 
     private int countItemsInContainer(BlockEntity container, Item targetItem) {
@@ -47,16 +43,14 @@ public class ChestSearchService {
         return totalCount;
     }
 
-    private record BlockPosNode(BlockPos pos, int distance) {
-    }
-
-    private List<BlockPos> findContainersInRange(ServerWorld world, BlockPos center, int range, Item targetItem) {
-        List<BlockPos> containers = new ArrayList<>();
+    private List<ContainerInfo> findContainersInRange(ServerWorld world, BlockPos center, int range, Item targetItem, int requiredCount) {
+        List<ContainerInfo> containers = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
-        Queue<BlockPosNode> queue = new LinkedList<>();
+        Queue<BlockPos> queue = new LinkedList<>();
+        int totalFound = 0;
         
         // Start with center position
-        queue.offer(new BlockPosNode(center, 0));
+        queue.offer(center);
         visited.add(center);
 
         // BFS directions (6 directions: up, down, north, south, east, west)
@@ -69,61 +63,55 @@ public class ChestSearchService {
             {-1, 0, 0}  // west
         };
 
-        while (!queue.isEmpty()) {
-            BlockPosNode current = queue.poll();
-            
+        int currentDistance = 0;
+        int nodesAtCurrentDistance = 1;
+        int nodesAtNextDistance = 0;
+
+        while (!queue.isEmpty() && (requiredCount <= 0 || totalFound < requiredCount)) {
+            BlockPos current = queue.poll();
+            nodesAtCurrentDistance--;
+
             // Check if current position has a container with target item
-            checkAndAddContainer(world, current.pos, containers, targetItem);
+            BlockEntity blockEntity = world.getChunk(current).getBlockEntity(current);
+            if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
+                int itemCount = countItemsInContainer(blockEntity, targetItem);
+                if (itemCount > 0) {
+                    containers.add(new ContainerInfo(current, itemCount));
+                    totalFound += itemCount;
+                    if (requiredCount > 0 && totalFound >= requiredCount) {
+                        break;
+                    }
+                }
+            }
 
             // If we haven't reached max range, explore neighbors
-            if (current.distance < range) {
+            if (currentDistance < range) {
                 for (int[] dir : directions) {
                     BlockPos nextPos = new BlockPos(
-                        current.pos.getX() + dir[0],
-                        current.pos.getY() + dir[1],
-                        current.pos.getZ() + dir[2]
+                        current.getX() + dir[0],
+                        current.getY() + dir[1],
+                        current.getZ() + dir[2]
                     );
 
                     if (!visited.contains(nextPos)) {
                         visited.add(nextPos);
-                        queue.offer(new BlockPosNode(nextPos, current.distance + 1));
+                        queue.offer(nextPos);
+                        nodesAtNextDistance++;
                     }
                 }
+            }
+
+            if (nodesAtCurrentDistance == 0) {
+                currentDistance++;
+                nodesAtCurrentDistance = nodesAtNextDistance;
+                nodesAtNextDistance = 0;
             }
         }
 
         return containers;
     }
 
-    private void checkAndAddContainer(ServerWorld world, BlockPos pos, List<BlockPos> containers, Item targetItem) {
-        BlockEntity blockEntity = world.getChunk(pos).getBlockEntity(pos);
-        if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
-            if (countItemsInContainer(blockEntity, targetItem) > 0) {
-                containers.add(pos);
-            }
-        }
-    }
-
-    private List<BlockPos> filterContainersByRequiredCount(ServerWorld world, List<BlockPos> containers, Item targetItem, int requiredCount) {
-        if (requiredCount <= 0) {
-            return containers;
-        }
-
-        List<BlockPos> filteredContainers = new ArrayList<>();
-        int totalFound = 0;
-
-        for (BlockPos pos : containers) {
-            filteredContainers.add(pos);
-            totalFound += countItemsInContainer(world.getChunk(pos).getBlockEntity(pos), targetItem);
-            if (totalFound >= requiredCount) {
-                break;
-            }
-        }
-
-        return filteredContainers;
-    }
-
-    private Text createResultMessage(List<BlockPos> foundContainers, Item targetItem, int requiredCount, int totalFound) {
+    private Text createResultMessage(List<ContainerInfo> foundContainers, Item targetItem, int requiredCount, int totalFound) {
         if (foundContainers.isEmpty()) {
             return Text.literal("No containers found containing ")
                     .formatted(Formatting.RED)
@@ -151,8 +139,9 @@ public class ChestSearchService {
                             .formatted(Formatting.GREEN));
         }
 
-        for (BlockPos pos : foundContainers) {
-            message.append(Text.literal(String.format("[%d, %d, %d] ", pos.getX(), pos.getY(), pos.getZ()))
+        for (ContainerInfo container : foundContainers) {
+            message.append(Text.literal(String.format("[%d, %d, %d] ", 
+                    container.pos.getX(), container.pos.getY(), container.pos.getZ()))
                     .formatted(Formatting.AQUA));
         }
 
@@ -162,19 +151,13 @@ public class ChestSearchService {
     public Text searchChests(ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
         BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
 
-        // Find all containers with the target item
-        List<BlockPos> containers = findContainersInRange(world, blockCenter, range, targetItem);
-
-        // Filter containers based on required count
-        List<BlockPos> filteredContainers = filterContainersByRequiredCount(world, containers, targetItem, requiredCount);
+        // Find containers and count items in a single pass
+        List<ContainerInfo> containers = findContainersInRange(world, blockCenter, range, targetItem, requiredCount);
 
         // Calculate total items found
-        int totalFound = 0;
-        for (BlockPos pos : filteredContainers) {
-            totalFound += countItemsInContainer(world.getChunk(pos).getBlockEntity(pos), targetItem);
-        }
+        int totalFound = containers.stream().mapToInt(ContainerInfo::itemCount).sum();
 
         // Generate and return result message
-        return createResultMessage(filteredContainers, targetItem, requiredCount, totalFound);
+        return createResultMessage(containers, targetItem, requiredCount, totalFound);
     }
 } 
