@@ -10,13 +10,13 @@ import net.minecraft.item.Item;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import space.ranzeplay.containeritemfinder.Main;
-import space.ranzeplay.containeritemfinder.service.ChestSearchService;
+import space.ranzeplay.containeritemfinder.service.ContainerSearchService;
 import net.minecraft.text.Text;
 
 public class ContainerItemFinderCommand {
-    private final ChestSearchService searchService;
+    private final ContainerSearchService searchService;
 
-    public ContainerItemFinderCommand(ChestSearchService searchService) {
+    public ContainerItemFinderCommand(ContainerSearchService searchService) {
         this.searchService = searchService;
     }
 
