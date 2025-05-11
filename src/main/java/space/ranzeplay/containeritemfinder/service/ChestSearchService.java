@@ -3,10 +3,10 @@ package space.ranzeplay.containeritemfinder.service;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.block.entity.ShulkerBoxBlockEntity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
@@ -25,7 +25,7 @@ public class ChestSearchService {
     private record ContainerInfo(BlockPos pos, int itemCount) {}
 
     public static class SearchTask {
-        private final ServerCommandSource source;
+        private final ServerPlayerEntity source;
         private final ServerWorld world;
         private final Vec3d center;
         private final int range;
@@ -36,7 +36,7 @@ public class ChestSearchService {
         private long lastHeartbeatTime = 0;
         private static final long HEARTBEAT_INTERVAL = 10_000; // 10 seconds in milliseconds
 
-        public SearchTask(ServerCommandSource source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
+        public SearchTask(ServerPlayerEntity source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
             this.source = source;
             this.world = world;
             this.center = center;
@@ -98,7 +98,7 @@ public class ChestSearchService {
                 return createResultMessage(containers, targetItem, requiredCount, totalFound);
             } finally {
                 if (source != null) {
-                    activeTasks.remove(source.getPlayer().getUuid());
+                    activeTasks.remove(source.getUuid());
                 }
             }
         }
@@ -155,6 +155,7 @@ public class ChestSearchService {
 
         while (!queue.isEmpty() && (requiredCount <= 0 || totalFound < requiredCount) && !task.isCancelled()) {
             BlockPos current = queue.poll();
+            assert current != null;
             nodesAtCurrentDistance--;
 
             // Check if current position has a container with target item
@@ -166,7 +167,7 @@ public class ChestSearchService {
                     totalFound += itemCount;
                     
                     // Send message when a container with target items is found
-                    if (task != null && task.source != null) {
+                    if (task.source != null) {
                         task.source.sendMessage(task.createFoundItemMessage(itemCount, current));
                     }
                     
@@ -200,15 +201,13 @@ public class ChestSearchService {
             }
 
             // Update blocks searched count and send heartbeat
-            if (task != null) {
-                task.blocksSearched.incrementAndGet();
-                double distance = Math.sqrt(
-                    Math.pow(current.getX() - center.getX(), 2) +
-                    Math.pow(current.getY() - center.getY(), 2) +
-                    Math.pow(current.getZ() - center.getZ(), 2)
-                );
-                task.sendHeartbeat(distance);
-            }
+            task.blocksSearched.incrementAndGet();
+            double distance = Math.sqrt(
+                Math.pow(current.getX() - center.getX(), 2) +
+                Math.pow(current.getY() - center.getY(), 2) +
+                Math.pow(current.getZ() - center.getZ(), 2)
+            );
+            task.sendHeartbeat(distance);
         }
 
         return containers;
@@ -269,30 +268,36 @@ public class ChestSearchService {
     }
 
     public Text searchChests(ServerCommandSource source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
-        if (!(source.getEntity() instanceof PlayerEntity)) {
+        if (!source.isExecutedByPlayer()) {
             return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
         }
+
+        ServerPlayerEntity player = source.getPlayer();
+        assert player != null;
 
         UUID playerId = source.getPlayer().getUuid();
         if (activeTasks.containsKey(playerId)) {
             return Text.literal("You already have an active search task. Use '/cif cancel' to cancel it first.").formatted(Formatting.RED);
         }
 
-        SearchTask task = new SearchTask(source, world, center, range, targetItem, requiredCount);
+        SearchTask task = new SearchTask(player, world, center, range, targetItem, requiredCount);
         activeTasks.put(playerId, task);
         return task.execute();
     }
 
     public Text cancelSearch(ServerCommandSource source) {
-        if (!(source.getEntity() instanceof PlayerEntity)) {
+        if (!source.isExecutedByPlayer()) {
             return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
         }
 
-        UUID playerId = source.getPlayer().getUuid();
-        SearchTask task = activeTasks.get(playerId);
+        ServerPlayerEntity player = source.getPlayer();
+        assert player != null;
+
+        SearchTask task = activeTasks.remove(player.getUuid());
         if (task == null) {
             return Text.literal("You don't have any active search tasks.").formatted(Formatting.RED);
         }
+
 
         return task.cancel();
     }
