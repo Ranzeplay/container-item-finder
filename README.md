@@ -25,6 +25,12 @@ The mod provides a command to search for items in nearby containers:
 - `item`: The item to search for (e.g., `diamond`, `iron_ingot`)
 - `count`: The minimum number of items to find (integer)
 
+### Cancelling task
+
+```
+/cif cancel
+```
+
 ### Examples
 - Search for diamonds within 10 blocks: `/cif 10 diamond`
 - Search for 64 iron ingots within 20 blocks: `/cif 20 iron_ingot 64`
