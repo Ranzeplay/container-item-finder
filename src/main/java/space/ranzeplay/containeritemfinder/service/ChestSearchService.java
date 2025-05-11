@@ -3,6 +3,7 @@ package space.ranzeplay.containeritemfinder.service;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.command.ServerCommandSource;
@@ -14,9 +15,12 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChestSearchService {
+    private static final Map<UUID, SearchTask> activeTasks = new ConcurrentHashMap<>();
 
     private record ContainerInfo(BlockPos pos, int itemCount) {}
 
@@ -28,8 +32,9 @@ public class ChestSearchService {
         private final Item targetItem;
         private final int requiredCount;
         private final AtomicInteger blocksSearched = new AtomicInteger(0);
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private long lastHeartbeatTime = 0;
-        private static final long HEARTBEAT_INTERVAL = 10000; // 10 seconds in milliseconds
+        private static final long HEARTBEAT_INTERVAL = 10_000; // 10 seconds in milliseconds
 
         public SearchTask(ServerCommandSource source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
             this.source = source;
@@ -40,24 +45,62 @@ public class ChestSearchService {
             this.requiredCount = requiredCount;
         }
 
+        private Text createHeartbeatMessage(int blocksSearched, double currentDistance) {
+            return Text.literal(String.format("Searching... (%d blocks searched, %.1fm from center)",
+                    blocksSearched, currentDistance))
+                    .formatted(Formatting.GRAY);
+        }
+
+        private Text createFoundItemMessage(int itemCount, BlockPos pos) {
+            return Text.literal(String.format("Found %dx %s at [%d, %d, %d]",
+                    itemCount, targetItem.getName().getString(),
+                    pos.getX(), pos.getY(), pos.getZ()))
+                    .formatted(Formatting.GRAY);
+        }
+
+        private Text createCancelledMessage(int blocksSearched, double lastDistance) {
+            return Text.literal(String.format("Search cancelled. Searched %d blocks, last distance: %.1fm",
+                    blocksSearched, lastDistance))
+                    .formatted(Formatting.YELLOW);
+        }
+
         private void sendHeartbeat(double currentDistance) {
-            if (source != null) {
+            if (source != null && !cancelled.get()) {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - lastHeartbeatTime >= HEARTBEAT_INTERVAL) {
-                    MutableText message = Text.literal(String.format("Searching... (%d blocks searched, %.1fm from center)",
-                            blocksSearched.get(), currentDistance))
-                            .formatted(Formatting.GRAY);
-                    source.sendMessage(message);
+                    source.sendMessage(createHeartbeatMessage(blocksSearched.get(), currentDistance));
                     lastHeartbeatTime = currentTime;
                 }
             }
         }
 
+        public Text cancel() {
+            if (cancelled.compareAndSet(false, true) && source != null) {
+                return createCancelledMessage(blocksSearched.get(), 
+                        Math.sqrt(
+                            Math.pow(center.x, 2) +
+                            Math.pow(center.y, 2) +
+                            Math.pow(center.z, 2)
+                        ));
+            }
+            return Text.literal("Search task cancelled.").formatted(Formatting.YELLOW);
+        }
+
+        public boolean isCancelled() {
+            return cancelled.get();
+        }
+
         public Text execute() {
-            BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
-            List<ContainerInfo> containers = findContainersInRange(this, world, blockCenter, range, targetItem, requiredCount);
-            int totalFound = containers.stream().mapToInt(ContainerInfo::itemCount).sum();
-            return createResultMessage(containers, targetItem, requiredCount, totalFound);
+            try {
+                BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
+                List<ContainerInfo> containers = findContainersInRange(this, world, blockCenter, range, targetItem, requiredCount);
+                int totalFound = containers.stream().mapToInt(ContainerInfo::itemCount).sum();
+                return createResultMessage(containers, targetItem, requiredCount, totalFound);
+            } finally {
+                if (source != null) {
+                    activeTasks.remove(source.getPlayer().getUuid());
+                }
+            }
         }
     }
 
@@ -110,7 +153,7 @@ public class ChestSearchService {
         int nodesAtCurrentDistance = 1;
         int nodesAtNextDistance = 0;
 
-        while (!queue.isEmpty() && (requiredCount <= 0 || totalFound < requiredCount)) {
+        while (!queue.isEmpty() && (requiredCount <= 0 || totalFound < requiredCount) && !task.isCancelled()) {
             BlockPos current = queue.poll();
             nodesAtCurrentDistance--;
 
@@ -124,11 +167,7 @@ public class ChestSearchService {
                     
                     // Send message when a container with target items is found
                     if (task != null && task.source != null) {
-                        MutableText message = Text.literal(String.format("Found %dx %s at [%d, %d, %d]",
-                                itemCount, targetItem.getName().getString(),
-                                current.getX(), current.getY(), current.getZ()))
-                                .formatted(Formatting.GRAY);
-                        task.source.sendMessage(message);
+                        task.source.sendMessage(task.createFoundItemMessage(itemCount, current));
                     }
                     
                     if (requiredCount > 0 && totalFound >= requiredCount) {
@@ -230,6 +269,31 @@ public class ChestSearchService {
     }
 
     public Text searchChests(ServerCommandSource source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
-        return new SearchTask(source, world, center, range, targetItem, requiredCount).execute();
+        if (!(source.getEntity() instanceof PlayerEntity)) {
+            return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
+        }
+
+        UUID playerId = source.getPlayer().getUuid();
+        if (activeTasks.containsKey(playerId)) {
+            return Text.literal("You already have an active search task. Use '/cif cancel' to cancel it first.").formatted(Formatting.RED);
+        }
+
+        SearchTask task = new SearchTask(source, world, center, range, targetItem, requiredCount);
+        activeTasks.put(playerId, task);
+        return task.execute();
+    }
+
+    public Text cancelSearch(ServerCommandSource source) {
+        if (!(source.getEntity() instanceof PlayerEntity)) {
+            return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
+        }
+
+        UUID playerId = source.getPlayer().getUuid();
+        SearchTask task = activeTasks.get(playerId);
+        if (task == null) {
+            return Text.literal("You don't have any active search tasks.").formatted(Formatting.RED);
+        }
+
+        return task.cancel();
     }
 } 

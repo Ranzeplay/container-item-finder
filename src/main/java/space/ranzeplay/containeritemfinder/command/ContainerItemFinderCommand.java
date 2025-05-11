@@ -23,7 +23,7 @@ public class ContainerItemFinderCommand {
     private void executeSearch(ServerCommandSource source, ServerWorld world, Vec3d pos, int range, Item item, int count) {
         new Thread(() -> {
             source.sendMessage(Text.literal("Searching for items..."));
-            Text result = searchService.searchChests(source,world, pos, range, item, count);
+            Text result = searchService.searchChests(source, world, pos, range, item, count);
             source.sendMessage(result);
         }).start();
     }
@@ -33,6 +33,12 @@ public class ContainerItemFinderCommand {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(
                 CommandManager.literal("cif")
+                    .then(CommandManager.literal("cancel")
+                        .executes(context -> {
+                            Text result = searchService.cancelSearch(context.getSource());
+                            context.getSource().sendMessage(result);
+                            return 1;
+                        }))
                     .then(CommandManager.argument("range", IntegerArgumentType.integer(1))
                         .then(CommandManager.argument("item", ItemStackArgumentType.itemStack(registryAccess))
                             .executes(context -> {
