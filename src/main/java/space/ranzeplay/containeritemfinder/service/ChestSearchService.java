@@ -13,7 +13,11 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
+import java.util.Set;
 
 public class ChestSearchService {
 
@@ -43,65 +47,47 @@ public class ChestSearchService {
         return totalCount;
     }
 
+    private record BlockPosNode(BlockPos pos, int distance) {
+    }
+
     private List<BlockPos> findContainersInRange(ServerWorld world, BlockPos center, int range, Item targetItem) {
         List<BlockPos> containers = new ArrayList<>();
+        Set<BlockPos> visited = new HashSet<>();
+        Queue<BlockPosNode> queue = new LinkedList<>();
+        
+        // Start with center position
+        queue.offer(new BlockPosNode(center, 0));
+        visited.add(center);
 
-        // Start from center
-        int x = center.getX();
-        int y = center.getY();
-        int z = center.getZ();
+        // BFS directions (6 directions: up, down, north, south, east, west)
+        int[][] directions = {
+            {0, 1, 0},  // up
+            {0, -1, 0}, // down
+            {0, 0, -1}, // north
+            {0, 0, 1},  // south
+            {1, 0, 0},  // east
+            {-1, 0, 0}  // west
+        };
 
-        // Spiral search pattern
-        for (int layer = 0; layer <= range; layer++) {
-            // Search each layer in a clockwise spiral
-            for (int dx = -layer; dx <= layer; dx++) {
-                // Top edge
-                BlockPos pos = new BlockPos(x + dx, y + layer, z - layer);
-                checkAndAddContainer(world, pos, containers, targetItem);
-            }
+        while (!queue.isEmpty()) {
+            BlockPosNode current = queue.poll();
+            
+            // Check if current position has a container with target item
+            checkAndAddContainer(world, current.pos, containers, targetItem);
 
-            for (int dz = -layer + 1; dz <= layer; dz++) {
-                // Right edge
-                BlockPos pos = new BlockPos(x + layer, y + layer, z + dz);
-                checkAndAddContainer(world, pos, containers, targetItem);
-            }
+            // If we haven't reached max range, explore neighbors
+            if (current.distance < range) {
+                for (int[] dir : directions) {
+                    BlockPos nextPos = new BlockPos(
+                        current.pos.getX() + dir[0],
+                        current.pos.getY() + dir[1],
+                        current.pos.getZ() + dir[2]
+                    );
 
-            for (int dx = layer - 1; dx >= -layer; dx--) {
-                // Bottom edge
-                BlockPos pos = new BlockPos(x + dx, y + layer, z + layer);
-                checkAndAddContainer(world, pos, containers, targetItem);
-            }
-
-            for (int dz = layer - 1; dz > -layer; dz--) {
-                // Left edge
-                BlockPos pos = new BlockPos(x - layer, y + layer, z + dz);
-                checkAndAddContainer(world, pos, containers, targetItem);
-            }
-
-            // Search lower layers
-            for (int dy = layer - 1; dy >= -layer; dy--) {
-                // Top edge
-                for (int dx = -layer; dx <= layer; dx++) {
-                    BlockPos pos = new BlockPos(x + dx, y + dy, z - layer);
-                    checkAndAddContainer(world, pos, containers, targetItem);
-                }
-
-                // Right edge
-                for (int dz = -layer + 1; dz <= layer; dz++) {
-                    BlockPos pos = new BlockPos(x + layer, y + dy, z + dz);
-                    checkAndAddContainer(world, pos, containers, targetItem);
-                }
-
-                // Bottom edge
-                for (int dx = layer - 1; dx >= -layer; dx--) {
-                    BlockPos pos = new BlockPos(x + dx, y + dy, z + layer);
-                    checkAndAddContainer(world, pos, containers, targetItem);
-                }
-
-                // Left edge
-                for (int dz = layer - 1; dz > -layer; dz--) {
-                    BlockPos pos = new BlockPos(x - layer, y + dy, z + dz);
-                    checkAndAddContainer(world, pos, containers, targetItem);
+                    if (!visited.contains(nextPos)) {
+                        visited.add(nextPos);
+                        queue.offer(new BlockPosNode(nextPos, current.distance + 1));
+                    }
                 }
             }
         }
@@ -110,7 +96,7 @@ public class ChestSearchService {
     }
 
     private void checkAndAddContainer(ServerWorld world, BlockPos pos, List<BlockPos> containers, Item targetItem) {
-        BlockEntity blockEntity = world.getBlockEntity(pos);
+        BlockEntity blockEntity = world.getChunk(pos).getBlockEntity(pos);
         if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
             if (countItemsInContainer(blockEntity, targetItem) > 0) {
                 containers.add(pos);
@@ -128,7 +114,7 @@ public class ChestSearchService {
 
         for (BlockPos pos : containers) {
             filteredContainers.add(pos);
-            totalFound += countItemsInContainer(world.getBlockEntity(pos), targetItem);
+            totalFound += countItemsInContainer(world.getChunk(pos).getBlockEntity(pos), targetItem);
             if (totalFound >= requiredCount) {
                 break;
             }
@@ -185,7 +171,7 @@ public class ChestSearchService {
         // Calculate total items found
         int totalFound = 0;
         for (BlockPos pos : filteredContainers) {
-            totalFound += countItemsInContainer(world.getBlockEntity(pos), targetItem);
+            totalFound += countItemsInContainer(world.getChunk(pos).getBlockEntity(pos), targetItem);
         }
 
         // Generate and return result message
