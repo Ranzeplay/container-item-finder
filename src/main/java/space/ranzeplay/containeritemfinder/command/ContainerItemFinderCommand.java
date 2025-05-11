@@ -23,7 +23,7 @@ public class ContainerItemFinderCommand {
     private void executeSearch(ServerCommandSource source, ServerWorld world, Vec3d pos, int range, Item item, int count) {
         new Thread(() -> {
             source.sendMessage(Text.literal("Searching for items..."));
-            Text result = searchService.searchChests(world, pos, range, item, count);
+            Text result = searchService.searchChests(source,world, pos, range, item, count);
             source.sendMessage(result);
         }).start();
     }

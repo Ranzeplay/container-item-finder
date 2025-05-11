@@ -5,6 +5,7 @@ import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
@@ -13,19 +14,61 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChestSearchService {
 
     private record ContainerInfo(BlockPos pos, int itemCount) {}
 
-    private int countItemsInStack(ItemStack stack, Item targetItem) {
+    public static class SearchTask {
+        private final ServerCommandSource source;
+        private final ServerWorld world;
+        private final Vec3d center;
+        private final int range;
+        private final Item targetItem;
+        private final int requiredCount;
+        private final AtomicInteger blocksSearched = new AtomicInteger(0);
+        private long lastHeartbeatTime = 0;
+        private static final long HEARTBEAT_INTERVAL = 10000; // 10 seconds in milliseconds
+
+        public SearchTask(ServerCommandSource source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
+            this.source = source;
+            this.world = world;
+            this.center = center;
+            this.range = range;
+            this.targetItem = targetItem;
+            this.requiredCount = requiredCount;
+        }
+
+        private void sendHeartbeat(double currentDistance) {
+            if (source != null) {
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastHeartbeatTime >= HEARTBEAT_INTERVAL) {
+                    MutableText message = Text.literal(String.format("Searching... (%d blocks searched, %.1fm from center)",
+                            blocksSearched.get(), currentDistance))
+                            .formatted(Formatting.GRAY);
+                    source.sendMessage(message);
+                    lastHeartbeatTime = currentTime;
+                }
+            }
+        }
+
+        public Text execute() {
+            BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
+            List<ContainerInfo> containers = findContainersInRange(this, world, blockCenter, range, targetItem, requiredCount);
+            int totalFound = containers.stream().mapToInt(ContainerInfo::itemCount).sum();
+            return createResultMessage(containers, targetItem, requiredCount, totalFound);
+        }
+    }
+
+    private static int countItemsInStack(ItemStack stack, Item targetItem) {
         if (stack.getItem().getTranslationKey().equals(targetItem.getTranslationKey())) {
             return stack.getCount();
         }
         return 0;
     }
 
-    private int countItemsInContainer(BlockEntity container, Item targetItem) {
+    private static int countItemsInContainer(BlockEntity container, Item targetItem) {
         int totalCount = 0;
 
         if (container instanceof ChestBlockEntity chest) {
@@ -43,7 +86,7 @@ public class ChestSearchService {
         return totalCount;
     }
 
-    private List<ContainerInfo> findContainersInRange(ServerWorld world, BlockPos center, int range, Item targetItem, int requiredCount) {
+    private static List<ContainerInfo> findContainersInRange(SearchTask task, ServerWorld world, BlockPos center, int range, Item targetItem, int requiredCount) {
         List<ContainerInfo> containers = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new LinkedList<>();
@@ -78,6 +121,16 @@ public class ChestSearchService {
                 if (itemCount > 0) {
                     containers.add(new ContainerInfo(current, itemCount));
                     totalFound += itemCount;
+                    
+                    // Send message when a container with target items is found
+                    if (task != null && task.source != null) {
+                        MutableText message = Text.literal(String.format("Found %dx %s at [%d, %d, %d]",
+                                itemCount, targetItem.getName().getString(),
+                                current.getX(), current.getY(), current.getZ()))
+                                .formatted(Formatting.GRAY);
+                        task.source.sendMessage(message);
+                    }
+                    
                     if (requiredCount > 0 && totalFound >= requiredCount) {
                         break;
                     }
@@ -106,12 +159,23 @@ public class ChestSearchService {
                 nodesAtCurrentDistance = nodesAtNextDistance;
                 nodesAtNextDistance = 0;
             }
+
+            // Update blocks searched count and send heartbeat
+            if (task != null) {
+                task.blocksSearched.incrementAndGet();
+                double distance = Math.sqrt(
+                    Math.pow(current.getX() - center.getX(), 2) +
+                    Math.pow(current.getY() - center.getY(), 2) +
+                    Math.pow(current.getZ() - center.getZ(), 2)
+                );
+                task.sendHeartbeat(distance);
+            }
         }
 
         return containers;
     }
 
-    private Text createResultMessage(List<ContainerInfo> foundContainers, Item targetItem, int requiredCount, int totalFound) {
+    private static Text createResultMessage(List<ContainerInfo> foundContainers, Item targetItem, int requiredCount, int totalFound) {
         if (foundContainers.isEmpty()) {
             return Text.literal("No containers found containing ")
                     .formatted(Formatting.RED)
@@ -165,16 +229,7 @@ public class ChestSearchService {
         return message;
     }
 
-    public Text searchChests(ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
-        BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
-
-        // Find containers and count items in a single pass
-        List<ContainerInfo> containers = findContainersInRange(world, blockCenter, range, targetItem, requiredCount);
-
-        // Calculate total items found
-        int totalFound = containers.stream().mapToInt(ContainerInfo::itemCount).sum();
-
-        // Generate and return result message
-        return createResultMessage(containers, targetItem, requiredCount, totalFound);
+    public Text searchChests(ServerCommandSource source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
+        return new SearchTask(source, world, center, range, targetItem, requiredCount).execute();
     }
 } 
