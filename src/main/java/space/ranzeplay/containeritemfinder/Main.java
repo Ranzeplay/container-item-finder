@@ -3,8 +3,9 @@ package space.ranzeplay.containeritemfinder;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import space.ranzeplay.containeritemfinder.command.ContainerItemFinderCommand;
+import space.ranzeplay.containeritemfinder.command.ContainerCommandManager;
 import space.ranzeplay.containeritemfinder.service.ContainerSearchService;
+import space.ranzeplay.containeritemfinder.service.ContainerIndexService;
 
 public class Main implements ModInitializer {
     private static final Logger LOGGER = LoggerFactory.getLogger("modid");
@@ -12,8 +13,9 @@ public class Main implements ModInitializer {
     @Override
     public void onInitialize() {
         ContainerSearchService searchService = new ContainerSearchService();
-        ContainerItemFinderCommand command = new ContainerItemFinderCommand(searchService);
-        command.register();
+        ContainerIndexService indexService = new ContainerIndexService();
+        ContainerCommandManager commandManager = new ContainerCommandManager(searchService, indexService);
+        commandManager.register();
     }
 
     public static Logger getLogger() {
