@@ -18,7 +18,6 @@ public class ContainerIndexCommand {
     }
 
     public void register() {
-        Main.getLogger().info("Registering index command");
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(
                 CommandManager.literal("cif")

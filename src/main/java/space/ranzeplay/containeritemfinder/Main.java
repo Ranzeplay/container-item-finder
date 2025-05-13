@@ -8,7 +8,8 @@ import space.ranzeplay.containeritemfinder.service.ContainerSearchService;
 import space.ranzeplay.containeritemfinder.service.ContainerIndexService;
 
 public class Main implements ModInitializer {
-    private static final Logger LOGGER = LoggerFactory.getLogger("modid");
+    public static final String MOD_ID = "containeritemfinder";
+    private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     @Override
     public void onInitialize() {
@@ -16,6 +17,8 @@ public class Main implements ModInitializer {
         ContainerIndexService indexService = new ContainerIndexService();
         ContainerCommandManager commandManager = new ContainerCommandManager(searchService, indexService);
         commandManager.register();
+        
+        LOGGER.info("ContainerItemFinder initialized successfully!");
     }
 
     public static Logger getLogger() {

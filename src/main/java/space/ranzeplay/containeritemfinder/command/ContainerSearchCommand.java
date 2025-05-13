@@ -11,6 +11,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import space.ranzeplay.containeritemfinder.Main;
 import space.ranzeplay.containeritemfinder.service.ContainerSearchService;
 import net.minecraft.text.Text;
+import com.mojang.brigadier.context.CommandContext;
 
 public class ContainerSearchCommand {
     private final ContainerSearchService searchService;
@@ -27,36 +28,27 @@ public class ContainerSearchCommand {
         }).start();
     }
 
+    private int executeCommand(CommandContext<ServerCommandSource> context, int count) {
+        int range = IntegerArgumentType.getInteger(context, "range");
+        var item = ItemStackArgumentType.getItemStackArgument(context, "item");
+        var source = context.getSource();
+        var world = source.getWorld();
+        var pos = source.getPosition();
+        
+        executeSearch(source, world, pos, range, item.getItem(), count);
+        return 1;
+    }
+
     public void register() {
-        Main.getLogger().info("Registering search command");
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(
                 CommandManager.literal("cif")
                     .then(CommandManager.literal("search")
                         .then(CommandManager.argument("range", IntegerArgumentType.integer(1))
                             .then(CommandManager.argument("item", ItemStackArgumentType.itemStack(registryAccess))
-                                .executes(context -> {
-                                    int range = IntegerArgumentType.getInteger(context, "range");
-                                    var item = ItemStackArgumentType.getItemStackArgument(context, "item");
-                                    var source = context.getSource();
-                                    var world = source.getWorld();
-                                    var pos = source.getPosition();
-                                    
-                                    executeSearch(source, world, pos, range, item.getItem(), -1);
-                                    return 1;
-                                })
+                                .executes(context -> executeCommand(context, -1))
                                 .then(CommandManager.argument("count", IntegerArgumentType.integer(1))
-                                    .executes(context -> {
-                                        int range = IntegerArgumentType.getInteger(context, "range");
-                                        var item = ItemStackArgumentType.getItemStackArgument(context, "item");
-                                        int count = IntegerArgumentType.getInteger(context, "count");
-                                        var source = context.getSource();
-                                        var world = source.getWorld();
-                                        var pos = source.getPosition();
-                                        
-                                        executeSearch(source, world, pos, range, item.getItem(), count);
-                                        return 1;
-                                    })
+                                    .executes(context -> executeCommand(context, IntegerArgumentType.getInteger(context, "count")))
                                 )
                             )
                         )

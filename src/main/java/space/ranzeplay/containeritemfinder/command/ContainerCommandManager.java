@@ -10,13 +10,11 @@ import space.ranzeplay.containeritemfinder.service.ContainerIndexService;
 
 public class ContainerCommandManager {
     private final ContainerSearchService searchService;
-    private final ContainerIndexService indexService;
     private final ContainerSearchCommand searchCommand;
     private final ContainerIndexCommand indexCommand;
 
     public ContainerCommandManager(ContainerSearchService searchService, ContainerIndexService indexService) {
         this.searchService = searchService;
-        this.indexService = indexService;
         this.searchCommand = new ContainerSearchCommand(searchService);
         this.indexCommand = new ContainerIndexCommand(indexService);
     }
