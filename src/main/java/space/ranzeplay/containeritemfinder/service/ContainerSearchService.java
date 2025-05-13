@@ -231,6 +231,183 @@ public class ContainerSearchService {
     private record ContainerInfo(BlockPos pos, int itemCount) {
     }
 
+    private record IndexedItem(String itemName, int count, BlockPos containerPos) {
+    }
+
+    private static List<IndexedItem> indexItemsInContainer(BlockEntity container, BlockPos pos) {
+        List<IndexedItem> items = new ArrayList<>();
+        
+        if (container instanceof ChestBlockEntity chest) {
+            for (int i = 0; i < chest.size(); i++) {
+                ItemStack stack = chest.getStack(i);
+                if (!stack.isEmpty()) {
+                    items.add(new IndexedItem(
+                        stack.getItem().getName().getString(),
+                        stack.getCount(),
+                        pos
+                    ));
+                }
+            }
+        } else if (container instanceof ShulkerBoxBlockEntity shulker) {
+            for (int i = 0; i < shulker.size(); i++) {
+                ItemStack stack = shulker.getStack(i);
+                if (!stack.isEmpty()) {
+                    items.add(new IndexedItem(
+                        stack.getItem().getName().getString(),
+                        stack.getCount(),
+                        pos
+                    ));
+                }
+            }
+        }
+        
+        return items;
+    }
+
+    private static List<IndexedItem> indexContainersInRange(SearchTask task, ServerWorld world, BlockPos center, int range) {
+        List<IndexedItem> allItems = new ArrayList<>();
+        Set<BlockPos> visited = new HashSet<>();
+        Queue<BlockPos> queue = new LinkedList<>();
+        int totalContainersSearched = 0;
+
+        // Start with center position
+        queue.offer(center);
+        visited.add(center);
+
+        // BFS directions (6 directions: up, down, north, south, east, west)
+        int[][] directions = {
+                {0, 1, 0},  // up
+                {0, -1, 0}, // down
+                {0, 0, -1}, // north
+                {0, 0, 1},  // south
+                {1, 0, 0},  // east
+                {-1, 0, 0}  // west
+        };
+
+        int currentDistance = 0;
+        int nodesAtCurrentDistance = 1;
+        int nodesAtNextDistance = 0;
+
+        while (!queue.isEmpty() && !task.isCancelled()) {
+            BlockPos current = queue.poll();
+            assert current != null;
+            nodesAtCurrentDistance--;
+
+            // Check if current position has a container
+            BlockEntity blockEntity = world.getChunk(current).getBlockEntity(current);
+            if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
+                totalContainersSearched++;
+                allItems.addAll(indexItemsInContainer(blockEntity, current));
+
+                // Send message when a container is indexed
+                if (task.source != null) {
+                    task.source.sendMessage(task.createIndexedContainerMessage(current));
+                }
+            }
+
+            // If we haven't reached max range, explore neighbors
+            if (currentDistance < range) {
+                for (int[] dir : directions) {
+                    BlockPos nextPos = new BlockPos(
+                            current.getX() + dir[0],
+                            current.getY() + dir[1],
+                            current.getZ() + dir[2]
+                    );
+
+                    if (!visited.contains(nextPos)) {
+                        visited.add(nextPos);
+                        queue.offer(nextPos);
+                        nodesAtNextDistance++;
+                    }
+                }
+            }
+
+            if (nodesAtCurrentDistance == 0) {
+                currentDistance++;
+                nodesAtCurrentDistance = nodesAtNextDistance;
+                nodesAtNextDistance = 0;
+            }
+
+            // Update blocks searched count and send heartbeat
+            task.blocksSearched.incrementAndGet();
+            double distance = Math.sqrt(
+                    Math.pow(current.getX() - center.getX(), 2) + Math.pow(current.getY() - center.getY(), 2) + Math.pow(current.getZ() - center.getZ(), 2)
+            );
+            task.sendHeartbeat(distance);
+        }
+
+        task.totalContainersSearched = totalContainersSearched;
+        return allItems;
+    }
+
+    private static Text createIndexResultMessage(List<IndexedItem> items, int totalContainersSearched) {
+        if (items.isEmpty()) {
+            return Text.literal("No items found in containers.")
+                    .formatted(Formatting.RED);
+        }
+
+        MutableText message = Text.empty();
+        
+        // First line: Summary
+        message.append(Text.literal("Indexed " + items.size() + " items in " + totalContainersSearched + " containers")
+                .formatted(Formatting.GREEN))
+                .append(Text.literal("\n"));
+
+        // Group items by name and count total
+        Map<String, Integer> itemTotals = new HashMap<>();
+        Map<String, List<BlockPos>> itemLocations = new HashMap<>();
+        
+        for (IndexedItem item : items) {
+            itemTotals.merge(item.itemName(), item.count(), Integer::sum);
+            itemLocations.computeIfAbsent(item.itemName(), k -> new ArrayList<>())
+                    .add(item.containerPos());
+        }
+
+        // Sort items by total count
+        List<Map.Entry<String, Integer>> sortedItems = new ArrayList<>(itemTotals.entrySet());
+        sortedItems.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
+
+        // Add each item's information
+        for (Map.Entry<String, Integer> entry : sortedItems) {
+            String itemName = entry.getKey();
+            int totalCount = entry.getValue();
+            List<BlockPos> locations = itemLocations.get(itemName);
+            
+            message.append(Text.literal(String.format("%dx %s in %d containers\n",
+                    totalCount, itemName, locations.size()))
+                    .formatted(Formatting.AQUA));
+        }
+
+        return message;
+    }
+
+    public Text indexContainers(ServerCommandSource source, ServerWorld world, Vec3d center, int range) {
+        if (!source.isExecutedByPlayer()) {
+            return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
+        }
+
+        ServerPlayerEntity player = source.getPlayer();
+        assert player != null;
+
+        UUID playerId = source.getPlayer().getUuid();
+        if (activeTasks.containsKey(playerId)) {
+            return Text.literal("You already have an active search task. Use '/cif cancel' to cancel it first.").formatted(Formatting.RED);
+        }
+
+        SearchTask task = new SearchTask(player, world, center, range, null, -1);
+        activeTasks.put(playerId, task);
+        
+        try {
+            BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
+            List<IndexedItem> items = indexContainersInRange(task, world, blockCenter, range);
+            return createIndexResultMessage(items, task.totalContainersSearched);
+        } finally {
+            if (source != null) {
+                activeTasks.remove(source.getUuid());
+            }
+        }
+    }
+
     public static class SearchTask {
         private static final long HEARTBEAT_INTERVAL = 10_000; // 10 seconds in milliseconds
         private final ServerPlayerEntity source;
@@ -262,6 +439,12 @@ public class ContainerSearchService {
         private Text createFoundItemMessage(int itemCount, BlockPos pos) {
             return Text.literal(String.format("Found %dx %s at [%d, %d, %d]",
                             itemCount, targetItem.getName().getString(),
+                            pos.getX(), pos.getY(), pos.getZ()))
+                    .formatted(Formatting.GRAY);
+        }
+
+        private Text createIndexedContainerMessage(BlockPos pos) {
+            return Text.literal(String.format("Indexed container at [%d, %d, %d]",
                             pos.getX(), pos.getY(), pos.getZ()))
                     .formatted(Formatting.GRAY);
         }

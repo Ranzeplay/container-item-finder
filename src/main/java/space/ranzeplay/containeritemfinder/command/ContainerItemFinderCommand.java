@@ -68,6 +68,23 @@ public class ContainerItemFinderCommand {
                             )
                         )
                     )
+                    .then(CommandManager.literal("index")
+                        .then(CommandManager.argument("range", IntegerArgumentType.integer(1))
+                            .executes(context -> {
+                                int range = IntegerArgumentType.getInteger(context, "range");
+                                var source = context.getSource();
+                                var world = source.getWorld();
+                                var pos = source.getPosition();
+                                
+                                new Thread(() -> {
+                                    source.sendMessage(Text.literal("Indexing containers..."));
+                                    Text result = searchService.indexContainers(source, world, pos, range);
+                                    source.sendMessage(result);
+                                }).start();
+                                return 1;
+                            })
+                        )
+                    )
             );
         });
     }
