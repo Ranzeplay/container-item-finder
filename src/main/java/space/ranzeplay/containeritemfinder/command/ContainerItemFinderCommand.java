@@ -39,30 +39,32 @@ public class ContainerItemFinderCommand {
                             context.getSource().sendMessage(result);
                             return 1;
                         }))
-                    .then(CommandManager.argument("range", IntegerArgumentType.integer(1))
-                        .then(CommandManager.argument("item", ItemStackArgumentType.itemStack(registryAccess))
-                            .executes(context -> {
-                                int range = IntegerArgumentType.getInteger(context, "range");
-                                var item = ItemStackArgumentType.getItemStackArgument(context, "item");
-                                var source = context.getSource();
-                                var world = source.getWorld();
-                                var pos = source.getPosition();
-                                
-                                executeSearch(source, world, pos, range, item.getItem(), -1);
-                                return 1;
-                            })
-                            .then(CommandManager.argument("count", IntegerArgumentType.integer(1))
+                    .then(CommandManager.literal("search")
+                        .then(CommandManager.argument("range", IntegerArgumentType.integer(1))
+                            .then(CommandManager.argument("item", ItemStackArgumentType.itemStack(registryAccess))
                                 .executes(context -> {
                                     int range = IntegerArgumentType.getInteger(context, "range");
                                     var item = ItemStackArgumentType.getItemStackArgument(context, "item");
-                                    int count = IntegerArgumentType.getInteger(context, "count");
                                     var source = context.getSource();
                                     var world = source.getWorld();
                                     var pos = source.getPosition();
                                     
-                                    executeSearch(source, world, pos, range, item.getItem(), count);
+                                    executeSearch(source, world, pos, range, item.getItem(), -1);
                                     return 1;
                                 })
+                                .then(CommandManager.argument("count", IntegerArgumentType.integer(1))
+                                    .executes(context -> {
+                                        int range = IntegerArgumentType.getInteger(context, "range");
+                                        var item = ItemStackArgumentType.getItemStackArgument(context, "item");
+                                        int count = IntegerArgumentType.getInteger(context, "count");
+                                        var source = context.getSource();
+                                        var world = source.getWorld();
+                                        var pos = source.getPosition();
+                                        
+                                        executeSearch(source, world, pos, range, item.getItem(), count);
+                                        return 1;
+                                    })
+                                )
                             )
                         )
                     )

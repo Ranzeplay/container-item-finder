@@ -9,7 +9,7 @@ The mod provides a command to search for items in nearby containers:
 ### Basic Usage
 
 ```
-/cif <range> <item>
+/cif search <range> <item>
 ```
 
 - `range`: The search radius in blocks (integer)
@@ -18,7 +18,7 @@ The mod provides a command to search for items in nearby containers:
 ### Advanced Usage
 
 ```
-/cif <range> <item> <count>
+/cif search <range> <item> <count>
 ```
 
 - `range`: The search radius in blocks (integer)
@@ -32,8 +32,8 @@ The mod provides a command to search for items in nearby containers:
 ```
 
 ### Examples
-- Search for diamonds within 10 blocks: `/cif 10 diamond`
-- Search for 64 iron ingots within 20 blocks: `/cif 20 iron_ingot 64`
+- Search for diamonds within 10 blocks: `/cif search 10 diamond`
+- Search for 64 iron ingots within 20 blocks: `/cif search 20 iron_ingot 64`
 
 ### Results
 The command will show:
