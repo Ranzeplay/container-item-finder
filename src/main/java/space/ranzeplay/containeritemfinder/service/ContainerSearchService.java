@@ -52,6 +52,7 @@ public class ContainerSearchService {
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new LinkedList<>();
         int totalFound = 0;
+        int totalContainersSearched = 0;
 
         // Start with center position
         queue.offer(center);
@@ -79,6 +80,7 @@ public class ContainerSearchService {
             // Check if current position has a container with target item
             BlockEntity blockEntity = world.getChunk(current).getBlockEntity(current);
             if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
+                totalContainersSearched++;
                 int itemCount = countItemsInContainer(blockEntity, targetItem);
                 if (itemCount > 0) {
                     containers.add(new ContainerInfo(current, itemCount));
@@ -126,10 +128,11 @@ public class ContainerSearchService {
             task.sendHeartbeat(distance);
         }
 
+        task.totalContainersSearched = totalContainersSearched;
         return containers;
     }
 
-    private static Text createResultMessage(List<ContainerInfo> foundContainers, Item targetItem, int requiredCount, int totalFound, Vec3d center) {
+    private static Text createResultMessage(List<ContainerInfo> foundContainers, Item targetItem, int requiredCount, int totalFound, Vec3d center, int totalContainersSearched) {
         if (foundContainers.isEmpty()) {
             return Text.literal("No containers found containing ")
                     .formatted(Formatting.RED)
@@ -149,29 +152,38 @@ public class ContainerSearchService {
             maxDistance = Math.max(maxDistance, distance);
         }
 
-        MutableText message;
+        MutableText message = Text.empty();
+        
+        // First line: Item count and containers found
         if (requiredCount > 0 && totalFound < requiredCount) {
-            message = Text.literal("Found ")
-                    .formatted(Formatting.YELLOW)
+            message.append(Text.literal("Found ")
+                    .formatted(Formatting.YELLOW))
                     .append(Text.literal(totalFound + "x " + targetItem.getName().getString())
                             .formatted(Formatting.YELLOW))
                     .append(Text.literal(" (need " + (requiredCount - totalFound) + " more) in ")
                             .formatted(Formatting.YELLOW))
-                    .append(Text.literal(foundContainers.size() + " containers at positions: ")
+                    .append(Text.literal(foundContainers.size() + " containers")
                             .formatted(Formatting.YELLOW));
         } else {
-            message = Text.literal("Found ")
-                    .formatted(Formatting.GREEN)
+            message.append(Text.literal("Found ")
+                    .formatted(Formatting.GREEN))
                     .append(Text.literal(totalFound + "x " + targetItem.getName().getString())
                             .formatted(Formatting.GREEN))
-                    .append(Text.literal(" in " + foundContainers.size() + " containers at positions: ")
+                    .append(Text.literal(" in " + foundContainers.size() + " containers")
                             .formatted(Formatting.GREEN));
         }
+        message.append(Text.literal("\n"));
 
-        // Add distance range information
-        message.append(Text.literal(String.format(" (%.1f~%.1fm) ", minDistance, maxDistance))
+        // Second line: Search statistics
+        message.append(Text.literal("Searched " + totalContainersSearched + " containers")
+                .formatted(Formatting.GRAY))
+                .append(Text.literal(String.format(" (%.1f~%.1fm from center)", minDistance, maxDistance))
+                .formatted(Formatting.GRAY))
+                .append(Text.literal("\n"));
+
+        // Third line: Container positions
+        message.append(Text.literal("Positions: ")
                 .formatted(Formatting.GRAY));
-
         for (ContainerInfo container : foundContainers) {
             message.append(Text.literal(String.format("[%d, %d, %d] ",
                             container.pos.getX(), container.pos.getY(), container.pos.getZ()))
@@ -230,6 +242,7 @@ public class ContainerSearchService {
         private final AtomicInteger blocksSearched = new AtomicInteger(0);
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private long lastHeartbeatTime = 0;
+        private int totalContainersSearched = 0;
 
         public SearchTask(ServerPlayerEntity source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
             this.source = source;
@@ -290,7 +303,7 @@ public class ContainerSearchService {
                 BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
                 List<ContainerInfo> containers = findContainersInRange(this, world, blockCenter, range, targetItem, requiredCount);
                 int totalFound = containers.stream().mapToInt(ContainerInfo::itemCount).sum();
-                return createResultMessage(containers, targetItem, requiredCount, totalFound, center);
+                return createResultMessage(containers, targetItem, requiredCount, totalFound, center, totalContainersSearched);
             } finally {
                 if (source != null) {
                     activeTasks.remove(source.getUuid());
