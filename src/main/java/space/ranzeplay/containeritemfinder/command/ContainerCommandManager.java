@@ -24,18 +24,18 @@ public class ContainerCommandManager {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             // Register cancel command
             dispatcher.register(
-                net.minecraft.server.command.CommandManager.literal("cif")
-                    .then(net.minecraft.server.command.CommandManager.literal("cancel")
+                CommandManager.literal("cif")
+                    .then(CommandManager.literal("cancel")
                         .executes(context -> {
                             Text result = searchService.cancelSearch(context.getSource());
                             context.getSource().sendMessage(result);
                             return 1;
                         }))
             );
-
-            // Register search and index commands
-            searchCommand.register();
-            indexCommand.register();
         });
+
+        // Register search and index commands
+        searchCommand.register();
+        indexCommand.register();
     }
 } 
