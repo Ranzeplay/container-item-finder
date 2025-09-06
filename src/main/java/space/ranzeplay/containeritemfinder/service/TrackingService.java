@@ -369,10 +369,6 @@ public class TrackingService {
 
     public void queueScan(Vec3d location, World world, int radius) {
         instantScanQueue.add((server) -> {
-            if (scanning) {
-                return;
-            }
-
             try {
                 Point p1 = new Point((int) (location.getX() - radius), (int) (location.getY() - radius), (int) (location.getZ() - radius));
                 Point p2 = new Point((int) (location.getX() + radius), (int) (location.getY() + radius), (int) (location.getZ() + radius));
