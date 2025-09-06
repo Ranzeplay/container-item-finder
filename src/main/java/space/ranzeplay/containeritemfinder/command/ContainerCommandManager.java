@@ -12,11 +12,13 @@ public class ContainerCommandManager {
     private final ContainerSearchService searchService;
     private final ContainerSearchCommand searchCommand;
     private final ContainerIndexCommand indexCommand;
+    private final DatabaseCommands databaseCommands;
 
     public ContainerCommandManager(ContainerSearchService searchService, ContainerIndexService indexService) {
         this.searchService = searchService;
         this.searchCommand = new ContainerSearchCommand(searchService);
         this.indexCommand = new ContainerIndexCommand(indexService);
+        this.databaseCommands = new DatabaseCommands();
     }
 
     public void register() {
@@ -37,5 +39,7 @@ public class ContainerCommandManager {
         // Register search and index commands
         searchCommand.register();
         indexCommand.register();
+
+        databaseCommands.register();
     }
 } 

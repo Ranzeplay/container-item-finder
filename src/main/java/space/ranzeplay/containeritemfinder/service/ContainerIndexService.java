@@ -21,20 +21,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ContainerIndexService {
     private static final Map<UUID, SearchTask> activeTasks = new ConcurrentHashMap<>();
 
-    private record IndexedItem(String itemName, int count, BlockPos containerPos) {
+    public record IndexedItem(String itemName, String id, int count, BlockPos containerPos) {
     }
 
-    private static List<IndexedItem> indexItemsInContainer(BlockEntity container, BlockPos pos) {
+    public static List<IndexedItem> indexItemsInContainer(BlockEntity container, BlockPos pos) {
         List<IndexedItem> items = new ArrayList<>();
-        
+
         if (container instanceof ChestBlockEntity chest) {
             for (int i = 0; i < chest.size(); i++) {
                 ItemStack stack = chest.getStack(i);
                 if (!stack.isEmpty()) {
                     items.add(new IndexedItem(
-                        stack.getItem().getName().getString(),
-                        stack.getCount(),
-                        pos
+                            stack.getItem().getName().getString(),
+                            stack.getItem().getTranslationKey(),
+                            stack.getCount(),
+                            pos
                     ));
                 }
             }
@@ -43,14 +44,15 @@ public class ContainerIndexService {
                 ItemStack stack = shulker.getStack(i);
                 if (!stack.isEmpty()) {
                     items.add(new IndexedItem(
-                        stack.getItem().getName().getString(),
-                        stack.getCount(),
-                        pos
+                            stack.getItem().getName().getString(),
+                            stack.getItem().getTranslationKey(),
+                            stack.getCount(),
+                            pos
                     ));
                 }
             }
         }
-        
+
         return items;
     }
 
@@ -137,16 +139,16 @@ public class ContainerIndexService {
         }
 
         MutableText message = Text.empty();
-        
+
         // First line: Summary
         message.append(Text.literal("Indexed " + items.size() + " items in " + totalContainersSearched + " containers")
-                .formatted(Formatting.GREEN))
+                        .formatted(Formatting.GREEN))
                 .append(Text.literal("\n"));
 
         // Group items by name and count total
         Map<String, Integer> itemTotals = new HashMap<>();
         Map<String, List<BlockPos>> itemLocations = new HashMap<>();
-        
+
         for (IndexedItem item : items) {
             itemTotals.merge(item.itemName(), item.count(), Integer::sum);
             itemLocations.computeIfAbsent(item.itemName(), k -> new ArrayList<>())
@@ -162,9 +164,9 @@ public class ContainerIndexService {
             String itemName = entry.getKey();
             int totalCount = entry.getValue();
             List<BlockPos> locations = itemLocations.get(itemName);
-            
+
             message.append(Text.literal(String.format("%dx %s in %d containers\n",
-                    totalCount, itemName, locations.size()))
+                            totalCount, itemName, locations.size()))
                     .formatted(Formatting.AQUA));
         }
 
@@ -186,15 +188,13 @@ public class ContainerIndexService {
 
         SearchTask task = new SearchTask(player, world, center, range);
         activeTasks.put(playerId, task);
-        
+
         try {
             BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
             List<IndexedItem> items = indexContainersInRange(task, world, blockCenter, range);
             return createIndexResultMessage(items, task.totalContainersSearched);
         } finally {
-            if (source != null) {
-                activeTasks.remove(playerId);
-            }
+            activeTasks.remove(playerId);
         }
     }
 
