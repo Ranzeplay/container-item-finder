@@ -7,6 +7,8 @@ import net.minecraft.command.argument.ItemStackArgumentType;
 import net.minecraft.item.Item;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import space.ranzeplay.containeritemfinder.Main;
 
 public class DatabaseCommands {
@@ -24,6 +26,8 @@ public class DatabaseCommands {
                                             .executes(this::executeSearch)
                                     )
                             )
+                            .then(CommandManager.literal("stats")
+                                    .executes(this::executeStats))
             );
         });
     }
@@ -44,6 +48,18 @@ public class DatabaseCommands {
         }
 
         Main.getTrackingService().searchTrackingItem(context.getSource(), context.getSource().getWorld(), context.getSource().getPosition(), range, item, count);
+
+        return 1;
+    }
+
+    private int executeStats(CommandContext<ServerCommandSource> context) {
+        final var source = context.getSource();
+        source.sendMessage(Main.getTrackingService().getLatestStatistics().toText());
+        if(Main.getTrackingService().isScanning()) {
+            source.sendMessage(Text.literal("Scanner: ").append(Text.literal("Active").formatted(Formatting.GREEN)));
+        } else {
+            source.sendMessage(Text.literal("Scanner: ").append(Text.literal("Inactive").formatted(Formatting.RED)));
+        }
 
         return 1;
     }
