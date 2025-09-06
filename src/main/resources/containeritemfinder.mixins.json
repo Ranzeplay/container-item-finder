@@ -1,9 +1,10 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "space.ranzeplay.containeritemfinder.mixin",
+  "package": "space.ranzeplay.containeritemfinder.mixins",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "ServerPlayerEntityMixin",
   ],
   "injectors": {
     "defaultRequire": 1

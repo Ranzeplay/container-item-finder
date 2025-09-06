@@ -5,18 +5,15 @@ import lombok.SneakyThrows;
 import net.minecraft.item.Item;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
 import org.slf4j.Logger;
 import space.ranzeplay.containeritemfinder.Main;
-import space.ranzeplay.containeritemfinder.models.AABB;
-import space.ranzeplay.containeritemfinder.models.Config;
-import space.ranzeplay.containeritemfinder.models.TrackerScanStatistics;
-import space.ranzeplay.containeritemfinder.models.TrackingSearchResult;
+import space.ranzeplay.containeritemfinder.models.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -31,23 +28,23 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 
 public class TrackingService {
     private Connection connection;
     private final Logger logger;
-    @Getter
     private ThreadPoolExecutor scheduler;
+    private ThreadPoolExecutor instantScanScheduler;
     private List<AABB> trackingAreas;
 
     private Date lastScan;
     private long interval;
     @Getter
     private boolean scanning;
+
+    private final ConcurrentLinkedQueue<Consumer<MinecraftServer>> instantScanQueue = new ConcurrentLinkedQueue<>();
 
     @Getter
     private TrackerScanStatistics latestStatistics;
@@ -94,6 +91,7 @@ public class TrackingService {
         lastScan = Date.from(Instant.EPOCH);
 
         scheduler = new ThreadPoolExecutor(Math.min(2, config.getIndexThreads()), config.getIndexThreads(), 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+        instantScanScheduler = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
     }
 
     public void tryScan(MinecraftServer server) {
@@ -127,93 +125,7 @@ public class TrackingService {
 
         for (AABB area : trackingAreas) {
             tasks.add(() -> {
-                var worlds = server.getWorlds();
-                ServerWorld world = null;
-                for (var w : worlds) {
-                    if (w.getRegistryKey().getValue().equals(Identifier.tryParse(area.getWorld()))) {
-                        world = w;
-                        break;
-                    }
-                }
-
-                if (world == null) {
-                    logger.warn("World {} not found, skipping tracking area", area.getWorld());
-                    return null;
-                }
-
-                var fromX = Math.min(area.getP1().getX(), area.getP2().getX());
-                var toX = Math.max(area.getP1().getX(), area.getP2().getX());
-
-                var fromY = Math.min(area.getP1().getY(), area.getP2().getY());
-                var toY = Math.max(area.getP1().getY(), area.getP2().getY());
-
-                var fromZ = Math.min(area.getP1().getZ(), area.getP2().getZ());
-                var toZ = Math.max(area.getP1().getZ(), area.getP2().getZ());
-
-                // Remove all existing entries in the area
-
-                var dbClearStmt = connection.prepareStatement(
-                        "DELETE FROM containers WHERE world = ? AND x >= ? AND x <= ? AND y >= ? AND y <= ? AND z >= ? AND z <= ?"
-                );
-
-                dbClearStmt.setString(1, area.getWorld());
-                dbClearStmt.setInt(2, fromX);
-                dbClearStmt.setInt(3, toX);
-                dbClearStmt.setInt(4, fromY);
-                dbClearStmt.setInt(5, toY);
-                dbClearStmt.setInt(6, fromZ);
-                dbClearStmt.setInt(7, toZ);
-                dbClearStmt.execute();
-                dbClearStmt.close();
-
-                for (int x = fromX; x <= toX; x++) {
-                    for (int y = fromY; y <= toY; y++) {
-                        for (int z = fromZ; z <= toZ; z++) {
-                            // Scan each block in the area
-                            var pos = new BlockPos(x, y, z);
-                            var blockState = world.getBlockState(pos);
-                            var blockEntity = world.getChunk(pos).getBlockEntity(pos);
-
-                            var items = ContainerIndexService.indexItemsInContainer(blockEntity, pos);
-                            if (items.isEmpty()) {
-                                continue;
-                            }
-
-                            // Insert new entry
-                            var dbInsertStmt = connection.prepareStatement(
-                                    "INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?) RETURNING id"
-                            );
-                            dbInsertStmt.setString(1, area.getWorld());
-                            dbInsertStmt.setInt(2, x);
-                            dbInsertStmt.setInt(3, y);
-                            dbInsertStmt.setInt(4, z);
-                            dbInsertStmt.setString(5, blockState.getBlock().getTranslationKey());
-                            var dbInsertRs = dbInsertStmt.executeQuery();
-                            if (!dbInsertRs.next()) {
-                                dbInsertStmt.close();
-                                continue;
-                            }
-
-                            var containerId = (UUID) dbInsertRs.getObject("id");
-
-                            dbInsertStmt.close();
-
-                            var dbItemStmt = connection.prepareStatement(
-                                    "INSERT INTO items (item, count, container) VALUES (?, ?, ?)"
-                            );
-                            for (var item : items) {
-                                dbItemStmt.clearParameters();
-                                dbItemStmt.setString(1, item.id());
-                                dbItemStmt.setInt(2, item.count());
-                                dbItemStmt.setObject(3, containerId);
-                                dbItemStmt.execute();
-                            }
-
-                            dbItemStmt.close();
-                        }
-                    }
-                }
-
+                scanAABB(server, area);
                 return null;
             });
         }
@@ -226,7 +138,7 @@ public class TrackingService {
     }
 
     @SneakyThrows
-    public void searchTrackingItem(ServerCommandSource commandSource, ServerWorld world, Vec3d center, Integer range, Item targetItem, Integer requiredCount) {
+    public void searchTrackingItem(ServerCommandSource commandSource, World world, Vec3d center, Integer range, Item targetItem, Integer requiredCount) {
         PreparedStatement statement;
 
         if (range == null) {
@@ -287,7 +199,7 @@ public class TrackingService {
                 commandSource.sendMessage(
                         Text.literal(String.format("Not enough items found (%d/%d).", totalFound, requiredCount)).formatted(Formatting.RED));
             } else {
-                commandSource.sendMessage(Text.literal("Search complete.").formatted(Formatting.GREEN));
+                commandSource.sendMessage(Text.literal(String.format("Search complete, %d items in total.", totalFound)).formatted(Formatting.GREEN));
             }
         } else {
             while (rs.next()) {
@@ -325,5 +237,143 @@ public class TrackingService {
                 itemCount,
                 duration
         );
+    }
+
+    private void scanAABB(MinecraftServer server, AABB area) throws SQLException {
+        var worlds = server.getWorlds();
+        World world = null;
+        for (var w : worlds) {
+            if (w.getRegistryKey().getValue().equals(Identifier.tryParse(area.getWorld()))) {
+                world = w;
+                break;
+            }
+        }
+
+        if (world == null) {
+            logger.warn("World {} not found, skipping tracking area", area.getWorld());
+            return;
+        }
+
+        var fromX = Math.min(area.getP1().getX(), area.getP2().getX());
+        var toX = Math.max(area.getP1().getX(), area.getP2().getX());
+
+        var fromY = Math.min(area.getP1().getY(), area.getP2().getY());
+        var toY = Math.max(area.getP1().getY(), area.getP2().getY());
+
+        var fromZ = Math.min(area.getP1().getZ(), area.getP2().getZ());
+        var toZ = Math.max(area.getP1().getZ(), area.getP2().getZ());
+
+        // Remove all existing entries in the area
+
+        var dbClearStmt = connection.prepareStatement(
+                "DELETE FROM containers WHERE world = ? AND x >= ? AND x <= ? AND y >= ? AND y <= ? AND z >= ? AND z <= ?"
+        );
+
+        dbClearStmt.setString(1, area.getWorld());
+        dbClearStmt.setInt(2, fromX);
+        dbClearStmt.setInt(3, toX);
+        dbClearStmt.setInt(4, fromY);
+        dbClearStmt.setInt(5, toY);
+        dbClearStmt.setInt(6, fromZ);
+        dbClearStmt.setInt(7, toZ);
+        dbClearStmt.execute();
+        dbClearStmt.close();
+
+        for (int x = fromX; x <= toX; x++) {
+            for (int y = fromY; y <= toY; y++) {
+                for (int z = fromZ; z <= toZ; z++) {
+                    // Scan each block in the area
+                    var pos = new BlockPos(x, y, z);
+                    var blockState = world.getBlockState(pos);
+                    var blockEntity = world.getChunk(pos).getBlockEntity(pos);
+
+                    var items = ContainerIndexService.indexItemsInContainer(blockEntity, pos);
+                    if (items.isEmpty()) {
+                        continue;
+                    }
+
+                    // Insert new entry
+                    var dbInsertStmt = connection.prepareStatement(
+                            "INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?) RETURNING id"
+                    );
+                    dbInsertStmt.setString(1, area.getWorld());
+                    dbInsertStmt.setInt(2, x);
+                    dbInsertStmt.setInt(3, y);
+                    dbInsertStmt.setInt(4, z);
+                    dbInsertStmt.setString(5, blockState.getBlock().getTranslationKey());
+                    var dbInsertRs = dbInsertStmt.executeQuery();
+                    if (!dbInsertRs.next()) {
+                        dbInsertStmt.close();
+                        continue;
+                    }
+
+                    var containerId = (UUID) dbInsertRs.getObject("id");
+
+                    dbInsertStmt.close();
+
+                    var dbItemStmt = connection.prepareStatement(
+                            "INSERT INTO items (item, count, container) VALUES (?, ?, ?)"
+                    );
+                    for (var item : items) {
+                        dbItemStmt.clearParameters();
+                        dbItemStmt.setString(1, item.id());
+                        dbItemStmt.setInt(2, item.count());
+                        dbItemStmt.setObject(3, containerId);
+                        dbItemStmt.execute();
+                    }
+
+                    dbItemStmt.close();
+                }
+            }
+        }
+    }
+
+    public void queueScan(Vec3d location, World world, int radius) {
+        instantScanQueue.add((server) -> {
+            if (scanning) {
+                return;
+            }
+
+            try {
+                Point p1 = new Point((int) (location.getX() - radius), (int) (location.getY() - radius), (int) (location.getZ() - radius));
+                Point p2 = new Point((int) (location.getX() + radius), (int) (location.getY() + radius), (int) (location.getZ() + radius));
+                AABB aabb = new AABB(p1, p2, world.getRegistryKey().getValue().toString());
+
+                logger.info("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.getX(), location.getY(), location.getZ()), world.getRegistryKey().getValue().toString());
+                scanAABB(server, aabb);
+
+            } catch (SQLException e) {
+                logger.error("Failed to perform instant scan: ", e);
+            }
+        });
+    }
+
+    public void applyScanQueue(MinecraftServer server) {
+        while(!instantScanQueue.isEmpty()) {
+            var task = instantScanQueue.poll();
+            if (task != null) {
+                instantScanScheduler.execute(() -> task.accept(server));
+            }
+        }
+    }
+
+    public void removeBlockFromTracking(BlockPos pos, World world) {
+        if (connection == null) {
+            return;
+        }
+
+        try {
+            var stmt = connection.prepareStatement(
+                    "DELETE FROM containers WHERE world = ? AND x = ? AND y = ? AND z = ?"
+            );
+            stmt.setString(1, world.getRegistryKey().getValue().toString());
+            stmt.setInt(2, pos.getX());
+            stmt.setInt(3, pos.getY());
+            stmt.setInt(4, pos.getZ());
+            stmt.execute();
+            stmt.close();
+        } catch (SQLException e) {
+            logger.error("Failed to remove block from tracking: ", e);
+        }
     }
 }
