@@ -134,11 +134,10 @@ public class ContainerSearchService {
 
     private static Text createResultMessage(List<ContainerInfo> foundContainers, Item targetItem, int requiredCount, int totalFound, Vec3d center, int totalContainersSearched) {
         if (foundContainers.isEmpty()) {
-            return Text.literal("No containers found containing ")
-                    .formatted(Formatting.RED)
-                    .append(Text.literal((requiredCount > 0 ? requiredCount + "x " : "") +
-                                    targetItem.getName().getString())
-                            .formatted(Formatting.RED));
+            return Text.literal(String.format("No containers found containing %s %s",
+                            requiredCount > 0 ? requiredCount + "x " : "",
+                            targetItem.getName().getString()))
+                        .formatted(Formatting.RED);
         }
 
         // Calculate distances
@@ -156,36 +155,35 @@ public class ContainerSearchService {
         
         // First line: Item count and containers found
         if (requiredCount > 0 && totalFound < requiredCount) {
-            message.append(Text.literal("Found ")
-                    .formatted(Formatting.YELLOW))
-                    .append(Text.literal(totalFound + "x " + targetItem.getName().getString())
-                            .formatted(Formatting.YELLOW))
-                    .append(Text.literal(" (need " + (requiredCount - totalFound) + " more) in ")
-                            .formatted(Formatting.YELLOW))
-                    .append(Text.literal(foundContainers.size() + " containers")
-                            .formatted(Formatting.YELLOW));
+            message.append(Text.translatable(
+                                    "info.cif.instant.search.finish_1_1",
+                                    totalFound,
+                                    targetItem.getName().getString(),
+                                    requiredCount - totalFound,
+                                    foundContainers.size()
+                            )).formatted(Formatting.YELLOW);
         } else {
-            message.append(Text.literal("Found ")
-                    .formatted(Formatting.GREEN))
-                    .append(Text.literal(totalFound + "x " + targetItem.getName().getString())
-                            .formatted(Formatting.GREEN))
-                    .append(Text.literal(" in " + foundContainers.size() + " containers")
-                            .formatted(Formatting.GREEN));
+            message.append(Text.translatable(
+                                    "info.cif.instant.search.finish_1_2",
+                                    totalFound,
+                                    targetItem.getName().getString(),
+                                    foundContainers.size()
+                            )).formatted(Formatting.GREEN);
         }
         message.append(Text.literal("\n"));
 
         // Second line: Search statistics
-        message.append(Text.literal("Searched " + totalContainersSearched + " containers")
-                .formatted(Formatting.GRAY))
-                .append(Text.literal(String.format(" (%.1f~%.1fm from center)", minDistance, maxDistance))
-                .formatted(Formatting.GRAY))
-                .append(Text.literal("\n"));
+        message.append(Text.translatable(
+                        "info.cif.instant.search.finish_2",
+                        totalContainersSearched, minDistance, maxDistance
+                )).formatted(Formatting.GRAY);
+        message.append(Text.literal("\n"));
 
         // Third line: Container positions
-        message.append(Text.literal("Positions: ")
+        message.append(Text.translatable("info.cif.instant.search.finish_3")
                 .formatted(Formatting.GRAY));
         for (ContainerInfo container : foundContainers) {
-            message.append(Text.literal(String.format("[%d, %d, %d] ",
+            message.append(Text.literal(String.format(" [%d, %d, %d]",
                             container.pos.getX(), container.pos.getY(), container.pos.getZ()))
                     .formatted(Formatting.AQUA));
         }
@@ -195,7 +193,7 @@ public class ContainerSearchService {
 
     public Text searchChests(ServerCommandSource source, ServerWorld world, Vec3d center, int range, Item targetItem, int requiredCount) {
         if (!source.isExecutedByPlayer()) {
-            return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
+            return Text.translatable("info.cif.player_only").formatted(Formatting.RED);
         }
 
         ServerPlayerEntity player = source.getPlayer();
@@ -203,7 +201,7 @@ public class ContainerSearchService {
 
         UUID playerId = player.getUuid();
         if (activeTasks.containsKey(playerId)) {
-            return Text.literal("You already have an active search task. Use '/cif cancel' to cancel it first.").formatted(Formatting.RED);
+            return Text.translatable("info.cif.instant.task_wip").formatted(Formatting.RED);
         }
 
         SearchTask task = new SearchTask(player, world, center, range, targetItem, requiredCount);
@@ -213,7 +211,7 @@ public class ContainerSearchService {
 
     public Text cancelSearch(ServerCommandSource source) {
         if (!source.isExecutedByPlayer()) {
-            return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
+            return Text.translatable("info.cif.player_only").formatted(Formatting.RED);
         }
 
         ServerPlayerEntity player = source.getPlayer();
@@ -221,7 +219,7 @@ public class ContainerSearchService {
 
         SearchTask task = activeTasks.remove(player.getUuid());
         if (task == null) {
-            return Text.literal("You don't have any active search tasks.").formatted(Formatting.RED);
+            return Text.translatable("info.cif.instant.no_active").formatted(Formatting.RED);
         }
 
         return task.cancel();
@@ -253,21 +251,19 @@ public class ContainerSearchService {
         }
 
         private Text createHeartbeatMessage(int blocksSearched, double currentDistance) {
-            return Text.literal(String.format("Searching... (%d blocks searched, %.1fm from center)",
-                            blocksSearched, currentDistance))
+            return Text.translatable("info.cif.instant.search.heartbeat", blocksSearched, currentDistance)
                     .formatted(Formatting.GRAY);
         }
 
         private Text createFoundItemMessage(int itemCount, BlockPos pos) {
-            return Text.literal(String.format("Found %dx %s at [%d, %d, %d]",
+            return Text.translatable("info.cif.instant.search.found",
                             itemCount, targetItem.getName().getString(),
-                            pos.getX(), pos.getY(), pos.getZ()))
+                            pos.getX(), pos.getY(), pos.getZ())
                     .formatted(Formatting.GRAY);
         }
 
         private Text createCancelledMessage(int blocksSearched, double lastDistance) {
-            return Text.literal(String.format("Search cancelled. Searched %d blocks, last distance: %.1fm",
-                            blocksSearched, lastDistance))
+            return Text.translatable("info.cif.instant.search.cancel_info", blocksSearched, lastDistance)
                     .formatted(Formatting.YELLOW);
         }
 
@@ -290,7 +286,7 @@ public class ContainerSearchService {
                                         Math.pow(center.z, 2)
                         ));
             }
-            return Text.literal("Search task cancelled.").formatted(Formatting.YELLOW);
+            return Text.translatable("info.cif.instant.search.cancel").formatted(Formatting.YELLOW);
         }
 
         public boolean isCancelled() {
@@ -310,4 +306,4 @@ public class ContainerSearchService {
             }
         }
     }
-} 
+}

@@ -22,7 +22,7 @@ public class ContainerSearchCommand {
 
     private void executeSearch(ServerCommandSource source, ServerWorld world, Vec3d pos, int range, Item item, int count) {
         new Thread(() -> {
-            source.sendMessage(Text.literal("Searching for items..."));
+            source.sendMessage(Text.translatable("info.cif.status.searching"));
             Text result = searchService.searchChests(source, world, pos, range, item, count);
             source.sendMessage(result);
         }).start();
@@ -56,4 +56,4 @@ public class ContainerSearchCommand {
             );
         });
     }
-} 
+}

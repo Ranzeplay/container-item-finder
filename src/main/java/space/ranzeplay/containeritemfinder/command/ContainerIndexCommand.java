@@ -30,7 +30,7 @@ public class ContainerIndexCommand {
                                 var pos = source.getPosition();
                                 
                                 new Thread(() -> {
-                                    source.sendMessage(Text.literal("Indexing containers..."));
+                                    source.sendMessage(Text.translatable("info.cif.status.indexing"));
                                     Text result = indexService.indexContainers(source, world, pos, range);
                                     source.sendMessage(result);
                                 }).start();
@@ -41,4 +41,4 @@ public class ContainerIndexCommand {
             );
         });
     }
-} 
+}

@@ -200,9 +200,9 @@ public class TrackingService {
 
             if (totalFound < requiredCount) {
                 commandSource.sendMessage(
-                        Text.literal(String.format("Not enough items found (%d/%d).", totalFound, requiredCount)).formatted(Formatting.RED));
+                        Text.translatable("info.cif.db.scan.not_enough", totalFound, requiredCount).formatted(Formatting.RED));
             } else {
-                commandSource.sendMessage(Text.literal(String.format("Search complete, %d items in total.", totalFound)).formatted(Formatting.GREEN));
+                commandSource.sendMessage(Text.translatable("info.cif.db.scan.complete", totalFound).formatted(Formatting.GREEN));
             }
         } else {
             while (rs.next()) {
@@ -211,11 +211,11 @@ public class TrackingService {
                 totalFound += result.getCount();
             }
 
-            commandSource.sendMessage(Text.literal(String.format("Search complete, found %d items", totalFound)).formatted(Formatting.GREEN));
+            commandSource.sendMessage(Text.translatable("info.cif.db.scan.complete", totalFound).formatted(Formatting.GREEN));
         }
 
         if(scanning){
-            commandSource.sendMessage(Text.literal("Note: The scanner is still running, results may be incomplete.").formatted(Formatting.YELLOW));
+            commandSource.sendMessage(Text.translatable("info.cif.db.still_scanning").formatted(Formatting.YELLOW));
         }
     }
 

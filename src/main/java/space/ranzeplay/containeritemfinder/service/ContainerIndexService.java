@@ -134,14 +134,14 @@ public class ContainerIndexService {
 
     private static Text createIndexResultMessage(List<IndexedItem> items, int totalContainersSearched) {
         if (items.isEmpty()) {
-            return Text.literal("No items found in containers.")
+            return Text.translatable("info.cif.instant.index.not_found")
                     .formatted(Formatting.RED);
         }
 
         MutableText message = Text.empty();
 
         // First line: Summary
-        message.append(Text.literal("Indexed " + items.size() + " items in " + totalContainersSearched + " containers")
+        message.append(Text.translatable("info.cif.instant.index.summary_1", items.size(), totalContainersSearched)
                         .formatted(Formatting.GREEN))
                 .append(Text.literal("\n"));
 
@@ -165,9 +165,10 @@ public class ContainerIndexService {
             int totalCount = entry.getValue();
             List<BlockPos> locations = itemLocations.get(itemName);
 
-            message.append(Text.literal(String.format("%dx %s in %d containers\n",
-                            totalCount, itemName, locations.size()))
-                    .formatted(Formatting.AQUA));
+            message.append(Text.translatable("info.cif.instant.index.item_partial",
+                            totalCount, itemName, locations.size())
+                    .formatted(Formatting.AQUA))
+                    .append(Text.literal("\n"));
         }
 
         return message;
@@ -175,7 +176,7 @@ public class ContainerIndexService {
 
     public Text indexContainers(ServerCommandSource source, ServerWorld world, Vec3d center, int range) {
         if (!source.isExecutedByPlayer()) {
-            return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
+            return Text.translatable("info.cif.player_only").formatted(Formatting.RED);
         }
 
         ServerPlayerEntity player = source.getPlayer();
@@ -183,7 +184,7 @@ public class ContainerIndexService {
 
         UUID playerId = player.getUuid();
         if (activeTasks.containsKey(playerId)) {
-            return Text.literal("You already have an active search task. Use '/cif cancel' to cancel it first.").formatted(Formatting.RED);
+            return Text.translatable("info.cif.instant.task_wip").formatted(Formatting.RED);
         }
 
         SearchTask task = new SearchTask(player, world, center, range);
@@ -200,7 +201,7 @@ public class ContainerIndexService {
 
     public Text cancelSearch(ServerCommandSource source) {
         if (!source.isExecutedByPlayer()) {
-            return Text.literal("This command can only be used by players.").formatted(Formatting.RED);
+            return Text.translatable("info.cif.player_only").formatted(Formatting.RED);
         }
 
         ServerPlayerEntity player = source.getPlayer();
@@ -208,7 +209,7 @@ public class ContainerIndexService {
 
         SearchTask task = activeTasks.remove(player.getUuid());
         if (task == null) {
-            return Text.literal("You don't have any active search tasks.").formatted(Formatting.RED);
+            return Text.translatable("info.cif.instant.no_active").formatted(Formatting.RED);
         }
 
         return task.cancel();
@@ -233,20 +234,20 @@ public class ContainerIndexService {
         }
 
         private Text createHeartbeatMessage(int blocksSearched, double currentDistance) {
-            return Text.literal(String.format("Searching... (%d blocks searched, %.1fm from center)",
-                            blocksSearched, currentDistance))
+            return Text.translatable("info.cif.instant.index.heartbeat",
+                            blocksSearched, currentDistance)
                     .formatted(Formatting.GRAY);
         }
 
         private Text createIndexedContainerMessage(BlockPos pos) {
-            return Text.literal(String.format("Indexed container at [%d, %d, %d]",
-                            pos.getX(), pos.getY(), pos.getZ()))
+            return Text.translatable("info.cif.instant.index.found",
+                            pos.getX(), pos.getY(), pos.getZ())
                     .formatted(Formatting.GRAY);
         }
 
         private Text createCancelledMessage(int blocksSearched, double lastDistance) {
-            return Text.literal(String.format("Search cancelled. Searched %d blocks, last distance: %.1fm",
-                            blocksSearched, lastDistance))
+            return Text.translatable("info.cif.instant.index.cancel_info",
+                            blocksSearched, lastDistance)
                     .formatted(Formatting.YELLOW);
         }
 
@@ -269,7 +270,7 @@ public class ContainerIndexService {
                                         Math.pow(center.z, 2)
                         ));
             }
-            return Text.literal("Search task cancelled.").formatted(Formatting.YELLOW);
+            return Text.translatable("info.cif.instant.index.cancel").formatted(Formatting.YELLOW);
         }
 
         public boolean isCancelled() {

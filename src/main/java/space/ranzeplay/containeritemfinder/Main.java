@@ -26,7 +26,7 @@ import space.ranzeplay.containeritemfinder.service.TrackingService;
 import java.nio.file.Files;
 
 public class Main implements ModInitializer {
-    public static final String MOD_ID = "containeritemfinder";
+    public static final String MOD_ID = "cif";
     @Getter
     private static final Logger logger = LoggerFactory.getLogger(MOD_ID);
     @Getter
