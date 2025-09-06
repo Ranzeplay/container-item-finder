@@ -2,7 +2,12 @@ package space.ranzeplay.containeritemfinder.service;
 
 import lombok.Getter;
 import lombok.SneakyThrows;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.ChestBlockEntity;
+import net.minecraft.block.entity.LootableContainerBlockEntity;
+import net.minecraft.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
@@ -11,6 +16,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import space.ranzeplay.containeritemfinder.Main;
 import space.ranzeplay.containeritemfinder.models.*;
@@ -24,10 +30,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
@@ -210,6 +213,10 @@ public class TrackingService {
 
             commandSource.sendMessage(Text.literal(String.format("Search complete, found %d items", totalFound)).formatted(Formatting.GREEN));
         }
+
+        if(scanning){
+            commandSource.sendMessage(Text.literal("Note: The scanner is still running, results may be incomplete.").formatted(Formatting.YELLOW));
+        }
     }
 
     private TrackerScanStatistics generateLatestStatistics(Date begin, Date end) throws SQLException {
@@ -287,8 +294,8 @@ public class TrackingService {
                     var blockState = world.getBlockState(pos);
                     var blockEntity = world.getChunk(pos).getBlockEntity(pos);
 
-                    var items = ContainerIndexService.indexItemsInContainer(blockEntity, pos);
-                    if (items.isEmpty()) {
+                    HashMap<String, Integer> items = tryGetContainerItems(blockEntity);
+                    if(items.isEmpty()) {
                         continue;
                     }
 
@@ -314,10 +321,10 @@ public class TrackingService {
                     var dbItemStmt = connection.prepareStatement(
                             "INSERT INTO items (item, count, container) VALUES (?, ?, ?)"
                     );
-                    for (var item : items) {
+                    for (var itemId : items.keySet()) {
                         dbItemStmt.clearParameters();
-                        dbItemStmt.setString(1, item.id());
-                        dbItemStmt.setInt(2, item.count());
+                        dbItemStmt.setString(1, itemId);
+                        dbItemStmt.setInt(2, items.get(itemId));
                         dbItemStmt.setObject(3, containerId);
                         dbItemStmt.execute();
                     }
@@ -326,6 +333,26 @@ public class TrackingService {
                 }
             }
         }
+    }
+
+    private static @NotNull HashMap<String, Integer> tryGetContainerItems(BlockEntity blockEntity) {
+        HashMap<String, Integer> items = new HashMap<>();
+
+        LootableContainerBlockEntity container = null;
+        if (blockEntity instanceof ChestBlockEntity chest) {
+            container = chest;
+        } else if (blockEntity instanceof ShulkerBoxBlockEntity shulkerBox) {
+            container = shulkerBox;
+        }
+
+        for (int i = 0; i < container.size(); i++) {
+            ItemStack stack = container.getStack(i);
+            if (!stack.isEmpty()) {
+                var itemId = stack.getItem().getTranslationKey();
+                items.put(itemId, items.getOrDefault(itemId, 0) + stack.getCount());
+            }
+        }
+        return items;
     }
 
     public void queueScan(Vec3d location, World world, int radius) {
