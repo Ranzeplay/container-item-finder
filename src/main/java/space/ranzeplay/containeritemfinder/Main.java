@@ -9,7 +9,6 @@ import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.item.BlockItem;

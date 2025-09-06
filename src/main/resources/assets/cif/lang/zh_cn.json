@@ -25,5 +25,13 @@
   "info.cif.instant.index.heartbeat": "索引中...（已搜索%d个方快，距离中心%.1fm）",
   "info.cif.instant.index.found": "在 [%d, %d, %d] 处找到一个容器",
   "info.cif.instant.index.cancel_info": "索引已取消，已搜索%d个方块，最远距离%.1fm",
-  "info.cif.instant.index.cancel": "索引已取消"
+  "info.cif.instant.index.cancel": "索引已取消",
+  "info.cif.db.rescan.busy": "已经有一个重新扫描任务在进行中",
+  "info.cif.db.rescan.start": "正在扫描",
+  "info.cif.db.rescan.noperm": "没有执行该任务的权限",
+  "info.cif.db.stat.title": "最近一次扫描的统计信息",
+  "info.cif.db.stat.areas": "区域数量：",
+  "info.cif.db.stat.containers": "数据库中的总容器数：",
+  "info.cif.db.stat.items": "数据库中的总物品数：",
+  "info.cif.db.stat.duration": "耗时："
 }

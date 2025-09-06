@@ -26,14 +26,14 @@ public class TrackerScanStatistics {
 
     public Text toText() {
         return Text.empty()
-                .append(Text.literal("Last scan statistics:").formatted(Formatting.GREEN, Formatting.BOLD)).append("\n")
-                .append(Text.literal("  Scanned Areas: ").formatted(Formatting.YELLOW))
-                .append(Text.literal(String.valueOf(scannedAreas)).formatted(Formatting.WHITE)).append("\n")
-                .append(Text.literal("  Total Containers: ").formatted(Formatting.YELLOW))
-                .append(Text.literal(String.valueOf(totalContainers)).formatted(Formatting.WHITE)).append("\n")
-                .append(Text.literal("  Total Items: ").formatted(Formatting.YELLOW))
-                .append(Text.literal(String.valueOf(totalItems)).formatted(Formatting.WHITE)).append("\n")
-                .append(Text.literal("  Duration: ").formatted(Formatting.YELLOW))
+                .append(Text.translatable("info.cif.db.stat.title").formatted(Formatting.GREEN, Formatting.BOLD)).append("\n  ")
+                .append(Text.translatable("info.cif.db.stat.areas").formatted(Formatting.YELLOW))
+                .append(Text.literal(String.valueOf(scannedAreas)).formatted(Formatting.WHITE)).append("\n  ")
+                .append(Text.translatable("info.cif.db.stat.containers").formatted(Formatting.YELLOW))
+                .append(Text.literal(String.valueOf(totalContainers)).formatted(Formatting.WHITE)).append("\n  ")
+                .append(Text.translatable("info.cif.db.stat.items").formatted(Formatting.YELLOW))
+                .append(Text.literal(String.valueOf(totalItems)).formatted(Formatting.WHITE)).append("\n  ")
+                .append(Text.translatable("info.cif.db.stat.duration").formatted(Formatting.YELLOW))
                 .append(Text.literal(formatDuration()).formatted(Formatting.WHITE));
     }
 

@@ -25,5 +25,13 @@
   "info.cif.instant.index.heartbeat": "Indexing... (%d blocks searched, %.1fm from center)",
   "info.cif.instant.index.found": "Indexed container at [%d, %d, %d]",
   "info.cif.instant.index.cancel_info": "Index cancelled. Indexed %d blocks, last distance: %.1fm",
-  "info.cif.instant.index.cancel": "Index cancelled"
+  "info.cif.instant.index.cancel": "Index cancelled",
+  "info.cif.db.rescan.busy": "There is already a scanning task in progress",
+  "info.cif.db.rescan.start": "Beginning scan",
+  "info.cif.db.rescan.noperm": "You don't have permission to do that",
+  "info.cif.db.stat.title": "Last scan statistics:",
+  "info.cif.db.stat.areas": "Scanned Areas: ",
+  "info.cif.db.stat.containers": "Total Containers: ",
+  "info.cif.db.stat.items": "Total Items: ",
+  "info.cif.db.stat.duration": "Duration: "
 }

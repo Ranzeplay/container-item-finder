@@ -28,8 +28,25 @@ public class DatabaseCommands {
                             )
                             .then(CommandManager.literal("stats")
                                     .executes(this::executeStats))
+                            .then(CommandManager.literal("rescan")
+                                    .executes(this::rescan))
             );
         });
+    }
+
+    private int rescan(CommandContext<ServerCommandSource> context) {
+        if(context.getSource().hasPermissionLevel(2)) {
+            if(Main.getTrackingService().isScanning()) {
+                context.getSource().sendMessage(Text.translatable("info.cif.db.rescan.busy").formatted(Formatting.RED));
+            } else {
+                context.getSource().sendMessage(Text.translatable("info.cif.db.rescan.start").formatted(Formatting.GREEN));
+                Main.getTrackingService().tryScan(context.getSource().getServer());
+            }
+        } else {
+            context.getSource().sendMessage(Text.translatable("info.cif.db.rescan.noperm").formatted(Formatting.RED));
+        }
+
+        return 1;
     }
 
     private int executeSearch(CommandContext<ServerCommandSource> context) {
@@ -62,7 +79,7 @@ public class DatabaseCommands {
         if (Main.getTrackingService().isScanning()) {
             source.sendMessage(Text.translatable("info.cif.stat.scanner.pre").append(Text.translatable("info.cif.stat.scanner.active").formatted(Formatting.GREEN)));
         } else {
-            source.sendMessage(Text.translatable("info.cif.stat.scanner.pre").append(Text.translatable("info.cif.stat.scanner.inactive").formatted(Formatting.RED)));
+            source.sendMessage(Text.translatable("info.cif.stat.scanner.pre").append(Text.translatable("info.cif.stat.scanner.inactive").formatted(Formatting.YELLOW)));
         }
 
         return 1;

@@ -102,25 +102,35 @@ public class TrackingService {
             return;
         }
 
-        scheduler.execute(() -> {
-            try {
-                logger.info("Beginning tracking area scan...");
-                scanning = true;
+        scheduler.execute(() -> doScan(server));
+    }
 
-                var beginTime = new Date();
-                scan(server);
-                var endTime = new Date();
+    public void manualScan(MinecraftServer server) {
+        if (connection == null || scanning) {
+            return;
+        }
 
-                var stats = generateLatestStatistics(beginTime, endTime);
-                lastScan = endTime;
-                latestStatistics = stats;
+        scheduler.execute(() -> doScan(server));
+    }
 
-                stats.log(logger);
-                scanning = false;
-            } catch (SQLException e) {
-                logger.error("Failed to scan tracking areas: ", e);
-            }
-        });
+    private void doScan(MinecraftServer server) {
+        try {
+            logger.info("Beginning manual tracking area scan...");
+            scanning = true;
+
+            var beginTime = new Date();
+            scan(server);
+            var endTime = new Date();
+
+            var stats = generateLatestStatistics(beginTime, endTime);
+            lastScan = endTime;
+            latestStatistics = stats;
+
+            stats.log(logger);
+            scanning = false;
+        } catch (SQLException e) {
+            logger.error("Failed to scan tracking areas: ", e);
+        }
     }
 
     private void scan(MinecraftServer server) throws SQLException {
@@ -214,7 +224,7 @@ public class TrackingService {
             commandSource.sendMessage(Text.translatable("info.cif.db.scan.complete", totalFound).formatted(Formatting.GREEN));
         }
 
-        if(scanning){
+        if (scanning) {
             commandSource.sendMessage(Text.translatable("info.cif.db.still_scanning").formatted(Formatting.YELLOW));
         }
     }
@@ -295,7 +305,7 @@ public class TrackingService {
                     var blockEntity = world.getChunk(pos).getBlockEntity(pos);
 
                     HashMap<String, Integer> items = tryGetContainerItems(blockEntity);
-                    if(items.isEmpty()) {
+                    if (items.isEmpty()) {
                         continue;
                     }
 
@@ -343,6 +353,8 @@ public class TrackingService {
             container = chest;
         } else if (blockEntity instanceof ShulkerBoxBlockEntity shulkerBox) {
             container = shulkerBox;
+        } else {
+            return items;
         }
 
         for (int i = 0; i < container.size(); i++) {
@@ -366,7 +378,7 @@ public class TrackingService {
                 Point p2 = new Point((int) (location.getX() + radius), (int) (location.getY() + radius), (int) (location.getZ() + radius));
                 AABB aabb = new AABB(p1, p2, world.getRegistryKey().getValue().toString());
 
-                logger.info("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.getX(), location.getY(), location.getZ()), world.getRegistryKey().getValue().toString());
+                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.getX(), location.getY(), location.getZ()), world.getRegistryKey().getValue().toString());
                 scanAABB(server, aabb);
 
             } catch (SQLException e) {
@@ -376,7 +388,7 @@ public class TrackingService {
     }
 
     public void applyScanQueue(MinecraftServer server) {
-        while(!instantScanQueue.isEmpty()) {
+        while (!instantScanQueue.isEmpty()) {
             var task = instantScanQueue.poll();
             if (task != null) {
                 instantScanScheduler.execute(() -> task.accept(server));
