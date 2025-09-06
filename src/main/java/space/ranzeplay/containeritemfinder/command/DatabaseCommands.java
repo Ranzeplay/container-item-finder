@@ -54,8 +54,12 @@ public class DatabaseCommands {
 
     private int executeStats(CommandContext<ServerCommandSource> context) {
         final var source = context.getSource();
-        source.sendMessage(Main.getTrackingService().getLatestStatistics().toText());
-        if(Main.getTrackingService().isScanning()) {
+        if (Main.getTrackingService().getLatestStatistics() == null) {
+            source.sendMessage(Text.literal("No statistics available").formatted(Formatting.RED));
+        } else {
+            source.sendMessage(Main.getTrackingService().getLatestStatistics().toText());
+        }
+        if (Main.getTrackingService().isScanning()) {
             source.sendMessage(Text.literal("Scanner: ").append(Text.literal("Active").formatted(Formatting.GREEN)));
         } else {
             source.sendMessage(Text.literal("Scanner: ").append(Text.literal("Inactive").formatted(Formatting.RED)));
