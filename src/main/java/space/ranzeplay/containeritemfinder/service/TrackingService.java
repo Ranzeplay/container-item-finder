@@ -166,7 +166,7 @@ public class TrackingService {
                                      WHERE items.item = ?
                                        AND containers.world = ?
                                  ) sub
-                            ORDER BY sub.dist
+                            ORDER BY sub.dist DESC
                             """
             );
         } else {
@@ -182,7 +182,7 @@ public class TrackingService {
                                        AND containers.world = ?
                                  ) sub
                             WHERE sub.dist <= ?
-                            ORDER BY sub.dist
+                            ORDER BY sub.dist DESC
                             """
             );
         }
@@ -348,7 +348,7 @@ public class TrackingService {
     private static @NotNull HashMap<String, Integer> tryGetContainerItems(BlockEntity blockEntity) {
         HashMap<String, Integer> items = new HashMap<>();
 
-        LootableContainerBlockEntity container = null;
+        LootableContainerBlockEntity container;
         if (blockEntity instanceof ChestBlockEntity chest) {
             container = chest;
         } else if (blockEntity instanceof ShulkerBoxBlockEntity shulkerBox) {
