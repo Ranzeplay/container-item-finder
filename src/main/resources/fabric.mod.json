@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "containeritemfinder",
+  "id": "cif",
   "version": "${version}",
   "name": "ContainerItemFinder",
   "description": "",
