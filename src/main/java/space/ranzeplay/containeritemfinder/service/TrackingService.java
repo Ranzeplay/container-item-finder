@@ -2,7 +2,6 @@ package space.ranzeplay.containeritemfinder.service;
 
 import lombok.Getter;
 import lombok.SneakyThrows;
-import net.minecraft.block.Block;
 import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
@@ -303,50 +302,56 @@ public class TrackingService {
         for (int x = fromX; x <= toX; x++) {
             for (int y = fromY; y <= toY; y++) {
                 for (int z = fromZ; z <= toZ; z++) {
-                    // Scan each block in the area
-                    var pos = new BlockPos(x, y, z);
-                    var blockState = world.getBlockState(pos);
-                    var blockEntity = world.getChunk(pos).getBlockEntity(pos);
-
-                    HashMap<String, Integer> items = tryGetContainerItems(blockEntity);
-                    if (items.isEmpty()) {
-                        continue;
-                    }
-
-                    // Insert new entry
-                    var dbInsertStmt = connection.prepareStatement(
-                            "INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?) RETURNING id"
-                    );
-                    dbInsertStmt.setString(1, area.getWorld());
-                    dbInsertStmt.setInt(2, x);
-                    dbInsertStmt.setInt(3, y);
-                    dbInsertStmt.setInt(4, z);
-                    dbInsertStmt.setString(5, blockState.getBlock().getTranslationKey());
-                    var dbInsertRs = dbInsertStmt.executeQuery();
-                    if (!dbInsertRs.next()) {
-                        dbInsertStmt.close();
-                        continue;
-                    }
-
-                    var containerId = (UUID) dbInsertRs.getObject("id");
-
-                    dbInsertStmt.close();
-
-                    var dbItemStmt = connection.prepareStatement(
-                            "INSERT INTO items (item, count, container) VALUES (?, ?, ?)"
-                    );
-                    for (var itemId : items.keySet()) {
-                        dbItemStmt.clearParameters();
-                        dbItemStmt.setString(1, itemId);
-                        dbItemStmt.setInt(2, items.get(itemId));
-                        dbItemStmt.setObject(3, containerId);
-                        dbItemStmt.execute();
-                    }
-
-                    dbItemStmt.close();
+                    scanOne(world, new BlockPos(x, y, z), false);
                 }
             }
         }
+    }
+
+    public void scanOne(World world, BlockPos pos, boolean removeExisting) throws SQLException {
+        if(removeExisting) {
+            removeBlockFromTracking(pos, world);
+        }
+
+        var blockState = world.getBlockState(pos);
+        var blockEntity = world.getChunk(pos).getBlockEntity(pos);
+
+        HashMap<String, Integer> items = tryGetContainerItems(blockEntity);
+        if (items.isEmpty()) {
+            return;
+        }
+
+        // Insert new entry
+        var dbInsertStmt = connection.prepareStatement(
+                "INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?) RETURNING id"
+        );
+        dbInsertStmt.setString(1, world.getRegistryKey().getValue().toString());
+        dbInsertStmt.setInt(2, pos.getX());
+        dbInsertStmt.setInt(3, pos.getY());
+        dbInsertStmt.setInt(4, pos.getZ());
+        dbInsertStmt.setString(5, blockState.getBlock().getTranslationKey());
+        var dbInsertRs = dbInsertStmt.executeQuery();
+        if (!dbInsertRs.next()) {
+            dbInsertStmt.close();
+            return;
+        }
+
+        var containerId = (UUID) dbInsertRs.getObject("id");
+
+        dbInsertStmt.close();
+
+        var dbItemStmt = connection.prepareStatement(
+                "INSERT INTO items (item, count, container) VALUES (?, ?, ?)"
+        );
+        for (var itemId : items.keySet()) {
+            dbItemStmt.clearParameters();
+            dbItemStmt.setString(1, itemId);
+            dbItemStmt.setInt(2, items.get(itemId));
+            dbItemStmt.setObject(3, containerId);
+            dbItemStmt.execute();
+        }
+
+        dbItemStmt.close();
     }
 
     private static @NotNull HashMap<String, Integer> tryGetContainerItems(BlockEntity blockEntity) {

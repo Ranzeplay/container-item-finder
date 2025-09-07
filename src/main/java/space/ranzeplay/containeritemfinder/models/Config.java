@@ -11,7 +11,7 @@ import java.util.List;
 public class Config {
     public Config() {
         enableTracking = false;
-        trackingAreas = new ArrayList<>();
+        trackingAreas = List.of(new AABB(new Point(0,0,0), new Point(0,0,0), "minecraft:overworld"));
         databaseConnectionString = "";
         refreshIntervalMinutes = 10080; // Default to 7 days
         indexThreads = 4;

@@ -4,7 +4,8 @@
   "package": "space.ranzeplay.containeritemfinder.mixins",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "ServerPlayerEntityMixin",
+    "BlockEntityMixin",
+    "LootableContainerBlockEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1
