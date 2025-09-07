@@ -51,9 +51,12 @@ public class TrackingService {
     private boolean scanning;
 
     private final ConcurrentLinkedQueue<Consumer<MinecraftServer>> instantScanQueue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<DelayedLocationScan> delayedLocationScanQueue = new ConcurrentLinkedQueue<>();
 
     @Getter
     private TrackerScanStatistics latestStatistics;
+
+    private static final int LOCATION_SCAN_DELAY_MS = 5000;
 
     public TrackingService(Config config) throws IOException, IllegalStateException {
         logger = Main.getLogger();
@@ -442,7 +445,40 @@ public class TrackingService {
         });
     }
 
+    public void queueScan(Location location) {
+        if(delayedLocationScanQueue.stream().anyMatch(p -> p.getLocation().equals(location))) {
+            return;
+        }
+
+        delayedLocationScanQueue.add(new DelayedLocationScan(location, System.currentTimeMillis()));
+    }
+
     public void applyScanQueue(MinecraftServer server) {
+        // Apply delayed scans
+        var now = System.currentTimeMillis();
+        while(delayedLocationScanQueue.stream().anyMatch(p -> now - p.getSubmitTimeMillis() > LOCATION_SCAN_DELAY_MS)) {
+            var task = delayedLocationScanQueue.poll();
+            if (task != null) {
+                instantScanQueue.add((s) -> {
+                    try {
+                        World world = null;
+                        for (var w : server.getWorlds()) {
+                            if (w.getRegistryKey().getValue().equals(Identifier.tryParse(task.getLocation().getWorld()))) {
+                                world = w;
+                                break;
+                            }
+                        }
+
+                        scanOne(world, task.getLocation().toBlockPos(), true);
+                        logger.debug("Performed delayed scan at {} @ {}", task.getLocation().toString(), task.getLocation().getWorld());
+                    } catch (SQLException e) {
+                        logger.error("Failed to perform delayed scan: ", e);
+                    }
+                });
+            }
+        }
+
+        // Apply scans
         while (!instantScanQueue.isEmpty()) {
             var task = instantScanQueue.poll();
             if (task != null) {

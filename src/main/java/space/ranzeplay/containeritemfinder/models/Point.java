@@ -1,15 +1,18 @@
 package space.ranzeplay.containeritemfinder.models;
 
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import net.minecraft.util.math.BlockPos;
 
 @Getter
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode
 @AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Point {
     private int x;
     private int y;
     private int z;
+
+    public BlockPos toBlockPos() {
+        return new BlockPos(x, y, z);
+    }
 }
