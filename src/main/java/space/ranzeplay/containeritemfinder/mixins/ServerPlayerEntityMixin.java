@@ -11,12 +11,12 @@ import space.ranzeplay.containeritemfinder.Main;
 
 @Mixin(ServerPlayerEntity.class)
 public class ServerPlayerEntityMixin {
-    @Inject(method = "onHandledScreenClosed" , at = @At("HEAD"))
+    @Inject(method = "onHandledScreenClosed", at = @At("HEAD"))
     private void onHandledScreenClosed(CallbackInfo ci) {
-        final var player = (ServerPlayerEntity)(Object)this;
+        final var player = (ServerPlayerEntity) (Object) this;
 
-        if(player.currentScreenHandler instanceof GenericContainerScreenHandler || player.currentScreenHandler instanceof ShulkerBoxScreenHandler) {
-            if(Main.getTrackingService() != null) {
+        if (player.currentScreenHandler instanceof GenericContainerScreenHandler || player.currentScreenHandler instanceof ShulkerBoxScreenHandler) {
+            if (Main.getTrackingService() != null) {
                 Main.getTrackingService().queueScan(player.getPos(), player.getWorld(), 10);
             }
         }

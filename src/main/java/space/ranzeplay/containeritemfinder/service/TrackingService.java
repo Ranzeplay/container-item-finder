@@ -2,10 +2,14 @@ package space.ranzeplay.containeritemfinder.service;
 
 import lombok.Getter;
 import lombok.SneakyThrows;
+import net.minecraft.block.Block;
+import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.block.entity.LootableContainerBlockEntity;
 import net.minecraft.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.MinecraftServer;
@@ -38,12 +42,12 @@ import java.util.function.Consumer;
 public class TrackingService {
     private Connection connection;
     private final Logger logger;
-    private ThreadPoolExecutor scheduler;
-    private ThreadPoolExecutor instantScanScheduler;
-    private List<AABB> trackingAreas;
+    private final ThreadPoolExecutor scheduler;
+    private final ThreadPoolExecutor instantScanScheduler;
+    private final List<AABB> trackingAreas;
 
     private Date lastScan;
-    private long interval;
+    private final long interval;
     @Getter
     private boolean scanning;
 
@@ -52,8 +56,15 @@ public class TrackingService {
     @Getter
     private TrackerScanStatistics latestStatistics;
 
-    public TrackingService(Config config) throws IOException {
+    public TrackingService(Config config) throws IOException, IllegalStateException {
         logger = Main.getLogger();
+
+        trackingAreas = config.getTrackingAreas();
+        interval = config.getRefreshIntervalMinutes();
+        lastScan = Date.from(Instant.EPOCH);
+
+        scheduler = new ThreadPoolExecutor(Math.min(2, config.getIndexThreads()), config.getIndexThreads(), 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+        instantScanScheduler = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
         try {
             connection = DriverManager.getConnection(config.getDatabaseConnectionString());
@@ -67,13 +78,13 @@ public class TrackingService {
         final var path = getClass().getClassLoader().getResource("init.sql");
         if (path == null) {
             logger.error("Failed to find database migration script.");
-            return;
+            throw new IllegalStateException("Failed to find database migration script.");
         }
 
         final var stream = getClass().getClassLoader().getResourceAsStream("init.sql");
         if (stream == null) {
             logger.error("Failed to load database migration script.");
-            return;
+            throw new IllegalStateException("Failed to load database migration script.");
         }
 
         var reader = new BufferedReader(new InputStreamReader(stream));
@@ -83,18 +94,11 @@ public class TrackingService {
         } catch (Exception e) {
             logger.error("Failed to migrate database schema: ", e);
             connection = null;
-            return;
+            throw new IllegalStateException("Failed to migrate database schema: ", e);
         } finally {
             reader.close();
             stream.close();
         }
-
-        trackingAreas = config.getTrackingAreas();
-        interval = config.getRefreshIntervalMinutes();
-        lastScan = Date.from(Instant.EPOCH);
-
-        scheduler = new ThreadPoolExecutor(Math.min(2, config.getIndexThreads()), config.getIndexThreads(), 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-        instantScanScheduler = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
     }
 
     public void tryScan(MinecraftServer server) {
@@ -362,8 +366,58 @@ public class TrackingService {
             if (!stack.isEmpty()) {
                 var itemId = stack.getItem().getTranslationKey();
                 items.put(itemId, items.getOrDefault(itemId, 0) + stack.getCount());
+
+                tryGetAsShulkerBoxItems(stack).forEach((k, v) -> {
+                    items.put(k, items.getOrDefault(k, 0) + v);
+                });
+
+                tryGetAsBundleItems(stack).forEach((k, v) -> {
+                    items.put(k, items.getOrDefault(k, 0) + v);
+                });
             }
         }
+        return items;
+    }
+
+    private static @NotNull HashMap<String, Integer> tryGetAsShulkerBoxItems(ItemStack stack) {
+        HashMap<String, Integer> items = new HashMap<>();
+
+        if (stack.getItem() instanceof BlockItem blockItem) {
+            if (blockItem.getBlock() instanceof ShulkerBoxBlock) {
+                var containerComponent = stack.get(DataComponentTypes.CONTAINER);
+                if (containerComponent != null) {
+                    for(var innerStack : containerComponent.stream().toList()) {
+                        if (!innerStack.isEmpty()) {
+                            var innerItemId = innerStack.getItem().getTranslationKey();
+                            items.put(innerItemId, items.getOrDefault(innerItemId, 0) + innerStack.getCount());
+
+                            tryGetAsBundleItems(innerStack).forEach((k, v) -> {
+                                items.put(k, items.getOrDefault(k, 0) + v);
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        return items;
+    }
+
+    private static HashMap<String, Integer> tryGetAsBundleItems(ItemStack stack) {
+        HashMap<String, Integer> items = new HashMap<>();
+
+        if (stack.getItem().getTranslationKey().equals("item.minecraft.bundle")) {
+            var containerComponent = stack.get(DataComponentTypes.BUNDLE_CONTENTS);
+            if (containerComponent != null) {
+                for(var innerStack : containerComponent.stream().toList()) {
+                    if (!innerStack.isEmpty()) {
+                        var innerItemId = innerStack.getItem().getTranslationKey();
+                        items.put(innerItemId, items.getOrDefault(innerItemId, 0) + innerStack.getCount());
+                    }
+                }
+            }
+        }
+
         return items;
     }
 
