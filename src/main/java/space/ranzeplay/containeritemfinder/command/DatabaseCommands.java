@@ -40,7 +40,7 @@ public class DatabaseCommands {
                 context.getSource().sendMessage(Text.translatable("info.cif.db.rescan.busy").formatted(Formatting.RED));
             } else {
                 context.getSource().sendMessage(Text.translatable("info.cif.db.rescan.start").formatted(Formatting.GREEN));
-                Main.getTrackingService().tryScan(context.getSource().getServer());
+                Main.getTrackingService().manualScan(context.getSource().getServer());
             }
         } else {
             context.getSource().sendMessage(Text.translatable("info.cif.db.rescan.noperm").formatted(Formatting.RED));
