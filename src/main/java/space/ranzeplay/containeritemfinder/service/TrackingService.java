@@ -208,7 +208,8 @@ public class TrackingService {
         var rs = statement.executeQuery();
         var totalFound = 0;
         if (requiredCount != null) {
-            while (totalFound < requiredCount && rs.next()) {
+            rs.afterLast();
+            while (totalFound < requiredCount && rs.previous()) {
                 var result = new TrackingSearchResult(rs);
                 commandSource.sendMessage(result.toText());
                 totalFound += result.getCount();
