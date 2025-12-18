@@ -4,6 +4,8 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.ItemStackArgumentType;
+import net.minecraft.command.permission.Permission;
+import net.minecraft.command.permission.PermissionLevel;
 import net.minecraft.item.Item;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -35,7 +37,7 @@ public class DatabaseCommands {
     }
 
     private int rescan(CommandContext<ServerCommandSource> context) {
-        if(context.getSource().hasPermissionLevel(2)) {
+        if(context.getSource().getPermissions().hasPermission(new Permission.Level(PermissionLevel.ADMINS))) {
             if(Main.getTrackingService().isScanning()) {
                 context.getSource().sendMessage(Text.translatable("info.cif.db.rescan.busy").formatted(Formatting.RED));
             } else {
