@@ -1,16 +1,19 @@
 package space.ranzeplay.containeritemfinder.command;
 
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.command.argument.ItemStackArgumentType;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.item.Item;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
-import space.ranzeplay.containeritemfinder.Main;
+import net.minecraft.commands.CommandSource;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.item.ItemArgument;
+import net.minecraft.commands.arguments.item.ItemInput;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import space.ranzeplay.containeritemfinder.service.ContainerSearchService;
-import net.minecraft.text.Text;
 import com.mojang.brigadier.context.CommandContext;
 
 public class ContainerSearchCommand {
@@ -20,34 +23,34 @@ public class ContainerSearchCommand {
         this.searchService = searchService;
     }
 
-    private void executeSearch(ServerCommandSource source, ServerWorld world, Vec3d pos, int range, Item item, int count) {
+    private void executeSearch(CommandSourceStack source, Level world, Vec3 pos, int range, Item item, int count) {
         new Thread(() -> {
-            source.sendMessage(Text.translatable("info.cif.status.searching"));
-            Text result = searchService.searchChests(source, world, pos, range, item, count);
-            source.sendMessage(result);
+            source.sendSystemMessage(Component.translatable("info.cif.status.searching"));
+            Component result = searchService.searchChests(source, world, pos, range, item, count);
+            source.sendSystemMessage(result);
         }).start();
     }
 
-    private int executeCommand(CommandContext<ServerCommandSource> context, int count) {
+    private int executeCommand(CommandContext<CommandSourceStack> context, int count) {
         int range = IntegerArgumentType.getInteger(context, "range");
-        var item = ItemStackArgumentType.getItemStackArgument(context, "item");
+        var item = ItemArgument.getItem(context, "item");
         var source = context.getSource();
-        var world = source.getWorld();
+        var world = source.getLevel();
         var pos = source.getPosition();
         
-        executeSearch(source, world, pos, range, item.getItem(), count);
+        executeSearch(source, world, pos, range, item.item().value(), count);
         return 1;
     }
 
     public void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(
-                CommandManager.literal("cif")
-                    .then(CommandManager.literal("search")
-                        .then(CommandManager.argument("range", IntegerArgumentType.integer(1))
-                            .then(CommandManager.argument("item", ItemStackArgumentType.itemStack(registryAccess))
+                    LiteralArgumentBuilder.<CommandSourceStack>literal("cif")
+                    .then(LiteralArgumentBuilder.<CommandSourceStack>literal("search")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("range", IntegerArgumentType.integer(1))
+                            .then(RequiredArgumentBuilder.<CommandSourceStack, ItemInput>argument("item", ItemArgument.item(registryAccess))
                                 .executes(context -> executeCommand(context, -1))
-                                .then(CommandManager.argument("count", IntegerArgumentType.integer(1))
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("count", IntegerArgumentType.integer(1))
                                     .executes(context -> executeCommand(context, IntegerArgumentType.getInteger(context, "count")))
                                 )
                             )

@@ -2,23 +2,23 @@ package space.ranzeplay.containeritemfinder.service;
 
 import lombok.Getter;
 import lombok.SneakyThrows;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.ChestBlockEntity;
-import net.minecraft.block.entity.LootableContainerBlockEntity;
-import net.minecraft.block.entity.ShulkerBoxBlockEntity;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSource;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
+import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import space.ranzeplay.containeritemfinder.Main;
@@ -157,7 +157,7 @@ public class TrackingService {
     }
 
     @SneakyThrows
-    public void searchTrackingItem(ServerCommandSource commandSource, World world, Vec3d center, Integer range, Item targetItem, Integer requiredCount) {
+    public void searchTrackingItem(CommandSource commandSource, Level world, Vec3 center, Integer range, Item targetItem, Integer requiredCount) {
         PreparedStatement statement;
 
         if (range == null) {
@@ -194,13 +194,13 @@ public class TrackingService {
         }
 
 
-        var itemId = targetItem.getTranslationKey();
+        var itemId = targetItem.getDescriptionId();
 
-        statement.setInt(1, (int) center.getX());
-        statement.setInt(2, (int) center.getY());
-        statement.setInt(3, (int) center.getZ());
+        statement.setInt(1, (int) center.x());
+        statement.setInt(2, (int) center.y());
+        statement.setInt(3, (int) center.z());
         statement.setString(4, itemId);
-        statement.setString(5, world.getRegistryKey().getValue().toString());
+        statement.setString(5, world.dimension().registryKey().toString());
         if (range != null) {
             statement.setInt(6, range);
         }
@@ -211,28 +211,28 @@ public class TrackingService {
             rs.afterLast();
             while (totalFound < requiredCount && rs.previous()) {
                 var result = new TrackingSearchResult(rs);
-                commandSource.sendMessage(result.toText());
+                commandSource.sendSystemMessage(result.toText());
                 totalFound += result.getCount();
             }
 
             if (totalFound < requiredCount) {
-                commandSource.sendMessage(
-                        Text.translatable("info.cif.db.scan.not_enough", totalFound, requiredCount).formatted(Formatting.RED));
+                commandSource.sendSystemMessage(
+                        Component.translatable("info.cif.db.scan.not_enough", totalFound, requiredCount).withStyle(ChatFormatting.RED));
             } else {
-                commandSource.sendMessage(Text.translatable("info.cif.db.scan.complete", totalFound).formatted(Formatting.GREEN));
+                commandSource.sendSystemMessage(Component.translatable("info.cif.db.scan.complete", totalFound).withStyle(ChatFormatting.GREEN));
             }
         } else {
             while (rs.next()) {
                 var result = new TrackingSearchResult(rs);
-                commandSource.sendMessage(result.toText());
+                commandSource.sendSystemMessage(result.toText());
                 totalFound += result.getCount();
             }
 
-            commandSource.sendMessage(Text.translatable("info.cif.db.scan.complete", totalFound).formatted(Formatting.GREEN));
+            commandSource.sendSystemMessage(Component.translatable("info.cif.db.scan.complete", totalFound).withStyle(ChatFormatting.GREEN));
         }
 
         if (scanning) {
-            commandSource.sendMessage(Text.translatable("info.cif.db.still_scanning").formatted(Formatting.YELLOW));
+            commandSource.sendSystemMessage(Component.translatable("info.cif.db.still_scanning").withStyle(ChatFormatting.YELLOW));
         }
     }
 
@@ -264,10 +264,10 @@ public class TrackingService {
     }
 
     private void scanAABB(MinecraftServer server, AABB area) throws SQLException {
-        var worlds = server.getWorlds();
-        World world = null;
+        var worlds = server.getAllLevels();
+        Level world = null;
         for (var w : worlds) {
-            if (w.getRegistryKey().getValue().equals(Identifier.tryParse(area.getWorld()))) {
+            if (world.dimension().registryKey().identifier().equals(Identifier.tryParse(area.getWorld()))) {
                 world = w;
                 break;
             }
@@ -312,7 +312,7 @@ public class TrackingService {
         }
     }
 
-    public void scanOne(World world, BlockPos pos, boolean removeExisting) throws SQLException {
+    public void scanOne(Level world, BlockPos pos, boolean removeExisting) throws SQLException {
         if(removeExisting) {
             removeBlockFromTracking(pos, world);
         }
@@ -329,11 +329,11 @@ public class TrackingService {
         var dbInsertStmt = connection.prepareStatement(
                 "INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?) RETURNING id"
         );
-        dbInsertStmt.setString(1, world.getRegistryKey().getValue().toString());
+        dbInsertStmt.setString(1, world.dimension().registryKey().toString());
         dbInsertStmt.setInt(2, pos.getX());
         dbInsertStmt.setInt(3, pos.getY());
         dbInsertStmt.setInt(4, pos.getZ());
-        dbInsertStmt.setString(5, blockState.getBlock().getTranslationKey());
+        dbInsertStmt.setString(5, blockState.getBlock().getDescriptionId());
         var dbInsertRs = dbInsertStmt.executeQuery();
         if (!dbInsertRs.next()) {
             dbInsertStmt.close();
@@ -361,7 +361,7 @@ public class TrackingService {
     private static @NotNull HashMap<String, Integer> tryGetContainerItems(BlockEntity blockEntity) {
         HashMap<String, Integer> items = new HashMap<>();
 
-        LootableContainerBlockEntity container;
+        RandomizableContainerBlockEntity container;
         if (blockEntity instanceof ChestBlockEntity chest) {
             container = chest;
         } else if (blockEntity instanceof ShulkerBoxBlockEntity shulkerBox) {
@@ -370,10 +370,10 @@ public class TrackingService {
             return items;
         }
 
-        for (int i = 0; i < container.size(); i++) {
-            ItemStack stack = container.getStack(i);
+        for (int i = 0; i < container.getContainerSize(); i++) {
+            ItemStack stack = container.getItem(i);
             if (!stack.isEmpty()) {
-                var itemId = stack.getItem().getTranslationKey();
+                var itemId = stack.getItem().getDescriptionId();
                 items.put(itemId, items.getOrDefault(itemId, 0) + stack.getCount());
 
                 tryGetAsShulkerBoxItems(stack).forEach((k, v) -> {
@@ -393,11 +393,11 @@ public class TrackingService {
 
         if (stack.getItem() instanceof BlockItem blockItem) {
             if (blockItem.getBlock() instanceof ShulkerBoxBlock) {
-                var containerComponent = stack.get(DataComponentTypes.CONTAINER);
+                var containerComponent = stack.get(DataComponents.CONTAINER);
                 if (containerComponent != null) {
-                    for(var innerStack : containerComponent.stream().toList()) {
+                    for(var innerStack : containerComponent.allItemsCopyStream().toList()) {
                         if (!innerStack.isEmpty()) {
-                            var innerItemId = innerStack.getItem().getTranslationKey();
+                            var innerItemId = innerStack.getItem().getDescriptionId();
                             items.put(innerItemId, items.getOrDefault(innerItemId, 0) + innerStack.getCount());
 
                             tryGetAsBundleItems(innerStack).forEach((k, v) -> {
@@ -415,12 +415,12 @@ public class TrackingService {
     private static HashMap<String, Integer> tryGetAsBundleItems(ItemStack stack) {
         HashMap<String, Integer> items = new HashMap<>();
 
-        if (stack.getItem().getTranslationKey().equals("item.minecraft.bundle")) {
-            var containerComponent = stack.get(DataComponentTypes.BUNDLE_CONTENTS);
+        if (stack.getItem().getDescriptionId().equals("item.minecraft.bundle")) {
+            var containerComponent = stack.get(DataComponents.BUNDLE_CONTENTS);
             if (containerComponent != null) {
-                for(var innerStack : containerComponent.stream().toList()) {
+                for(var innerStack : containerComponent.itemCopyStream().toList()) {
                     if (!innerStack.isEmpty()) {
-                        var innerItemId = innerStack.getItem().getTranslationKey();
+                        var innerItemId = innerStack.getItem().getDescriptionId();
                         items.put(innerItemId, items.getOrDefault(innerItemId, 0) + innerStack.getCount());
                     }
                 }
@@ -430,14 +430,14 @@ public class TrackingService {
         return items;
     }
 
-    public void queueScan(Vec3d location, World world, int radius) {
+    public void queueScan(Vec3 location, Level world, int radius) {
         instantScanQueue.add((server) -> {
             try {
-                Point p1 = new Point((int) (location.getX() - radius), (int) (location.getY() - radius), (int) (location.getZ() - radius));
-                Point p2 = new Point((int) (location.getX() + radius), (int) (location.getY() + radius), (int) (location.getZ() + radius));
-                AABB aabb = new AABB(p1, p2, world.getRegistryKey().getValue().toString());
+                Point p1 = new Point((int) (location.x() - radius), (int) (location.y() - radius), (int) (location.z() - radius));
+                Point p2 = new Point((int) (location.x() + radius), (int) (location.y() + radius), (int) (location.z() + radius));
+                AABB aabb = new AABB(p1, p2, world.dimension().registryKey().toString());
 
-                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.getX(), location.getY(), location.getZ()), world.getRegistryKey().getValue().toString());
+                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.x(), location.y(), location.z()), world.dimension().registryKey().toString());
                 scanAABB(server, aabb);
 
             } catch (SQLException e) {
@@ -462,9 +462,9 @@ public class TrackingService {
             if (task != null) {
                 instantScanQueue.add((s) -> {
                     try {
-                        World world = null;
-                        for (var w : server.getWorlds()) {
-                            if (w.getRegistryKey().getValue().equals(Identifier.tryParse(task.getLocation().getWorld()))) {
+                        Level world = null;
+                        for (var w : server.getAllLevels()) {
+                            if (w.dimension().registryKey().identifier().equals(Identifier.tryParse(task.getLocation().getWorld()))) {
                                 world = w;
                                 break;
                             }
@@ -488,7 +488,7 @@ public class TrackingService {
         }
     }
 
-    public void removeBlockFromTracking(BlockPos pos, World world) {
+    public void removeBlockFromTracking(BlockPos pos, Level world) {
         if (connection == null) {
             return;
         }
@@ -497,7 +497,7 @@ public class TrackingService {
             var stmt = connection.prepareStatement(
                     "DELETE FROM containers WHERE world = ? AND x = ? AND y = ? AND z = ?"
             );
-            stmt.setString(1, world.getRegistryKey().getValue().toString());
+            stmt.setString(1, world.dimension().registryKey().toString());
             stmt.setInt(2, pos.getX());
             stmt.setInt(3, pos.getY());
             stmt.setInt(4, pos.getZ());

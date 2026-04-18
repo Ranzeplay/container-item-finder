@@ -2,8 +2,8 @@ package space.ranzeplay.containeritemfinder.models;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 
 import java.time.Duration;
@@ -24,17 +24,17 @@ public class TrackerScanStatistics {
         logger.info("  Duration: {}", formatDuration());
     }
 
-    public Text toText() {
-        return Text.empty()
-                .append(Text.translatable("info.cif.db.stat.title").formatted(Formatting.GREEN, Formatting.BOLD)).append("\n  ")
-                .append(Text.translatable("info.cif.db.stat.areas").formatted(Formatting.YELLOW))
-                .append(Text.literal(String.valueOf(scannedAreas)).formatted(Formatting.WHITE)).append("\n  ")
-                .append(Text.translatable("info.cif.db.stat.containers").formatted(Formatting.YELLOW))
-                .append(Text.literal(String.valueOf(totalContainers)).formatted(Formatting.WHITE)).append("\n  ")
-                .append(Text.translatable("info.cif.db.stat.items").formatted(Formatting.YELLOW))
-                .append(Text.literal(String.valueOf(totalItems)).formatted(Formatting.WHITE)).append("\n  ")
-                .append(Text.translatable("info.cif.db.stat.duration").formatted(Formatting.YELLOW))
-                .append(Text.literal(formatDuration()).formatted(Formatting.WHITE));
+    public Component toText() {
+        return Component.empty()
+                .append(Component.translatable("info.cif.db.stat.title").withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD)).append("\n  ")
+                .append(Component.translatable("info.cif.db.stat.areas").withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(String.valueOf(scannedAreas)).withStyle(ChatFormatting.WHITE)).append("\n  ")
+                .append(Component.translatable("info.cif.db.stat.containers").withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(String.valueOf(totalContainers)).withStyle(ChatFormatting.WHITE)).append("\n  ")
+                .append(Component.translatable("info.cif.db.stat.items").withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(String.valueOf(totalItems)).withStyle(ChatFormatting.WHITE)).append("\n  ")
+                .append(Component.translatable("info.cif.db.stat.duration").withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(formatDuration()).withStyle(ChatFormatting.WHITE));
     }
 
     private String formatDuration() {

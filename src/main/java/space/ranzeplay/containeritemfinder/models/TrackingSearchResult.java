@@ -1,8 +1,8 @@
 package space.ranzeplay.containeritemfinder.models;
 
 import lombok.Getter;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -25,10 +25,10 @@ public class TrackingSearchResult {
         this.distance = rs.getDouble("dist");
     }
 
-    public Text toText() {
-        return Text.empty()
-                .append(Text.literal(String.format("(%.1fm) ", distance)).formatted(Formatting.YELLOW))
-                .append(Text.literal(String.format("[%d, %d, %d] ", x, y, z)).formatted(Formatting.AQUA))
-                .append(Text.literal(String.format("%dx",count)).formatted(Formatting.GRAY));
+    public Component toText() {
+        return Component.empty()
+                .append(Component.literal(String.format("(%.1fm) ", distance)).withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(String.format("[%d, %d, %d] ", x, y, z)).withStyle(ChatFormatting.AQUA))
+                .append(Component.literal(String.format("%dx",count)).withStyle(ChatFormatting.GRAY));
     }
 }

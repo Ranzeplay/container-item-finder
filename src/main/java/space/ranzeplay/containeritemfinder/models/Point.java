@@ -1,7 +1,7 @@
 package space.ranzeplay.containeritemfinder.models;
 
 import lombok.*;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
 
 @Getter
 @EqualsAndHashCode

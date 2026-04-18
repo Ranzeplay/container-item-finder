@@ -8,12 +8,12 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.block.entity.ChestBlockEntity;
-import net.minecraft.block.entity.ShulkerBoxBlockEntity;
-import net.minecraft.item.BlockItem;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import space.ranzeplay.containeritemfinder.command.ContainerCommandManager;
@@ -60,13 +60,13 @@ public class Main implements ModInitializer {
                 // In your onInitialize method
                 UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
                     // Check if the player is holding a block item
-                    var stack = player.getStackInHand(hand);
+                    var stack = player.getItemInHand(hand);
                     if (stack.getItem() instanceof BlockItem b) {
                         if (b.getBlock() instanceof ShulkerBoxBlock) {
-                            trackingService.queueScan(new Vec3d(hitResult.getBlockPos().getX(), hitResult.getBlockPos().getY(), hitResult.getBlockPos().getZ()), world, 3);
+                            trackingService.queueScan(new Vec3(hitResult.getBlockPos().getX(), hitResult.getBlockPos().getY(), hitResult.getBlockPos().getZ()), world, 3);
                         }
                     }
-                    return ActionResult.PASS;
+                    return InteractionResult.PASS;
                 });
 
             } catch (Exception e) {

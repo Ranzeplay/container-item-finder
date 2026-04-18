@@ -1,17 +1,19 @@
 package space.ranzeplay.containeritemfinder.service;
 
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.ChestBlockEntity;
-import net.minecraft.block.entity.ShulkerBoxBlockEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSource;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,24 +30,24 @@ public class ContainerIndexService {
         List<IndexedItem> items = new ArrayList<>();
 
         if (container instanceof ChestBlockEntity chest) {
-            for (int i = 0; i < chest.size(); i++) {
-                ItemStack stack = chest.getStack(i);
+            for (int i = 0; i < chest.getContainerSize(); i++) {
+                ItemStack stack = chest.getItem(i);
                 if (!stack.isEmpty()) {
                     items.add(new IndexedItem(
-                            stack.getItem().getName().getString(),
-                            stack.getItem().getTranslationKey(),
+                            stack.getItem().getName(stack).getString(),
+                            stack.getItem().getDescriptionId(),
                             stack.getCount(),
                             pos
                     ));
                 }
             }
         } else if (container instanceof ShulkerBoxBlockEntity shulker) {
-            for (int i = 0; i < shulker.size(); i++) {
-                ItemStack stack = shulker.getStack(i);
+            for (int i = 0; i < shulker.getContainerSize(); i++) {
+                ItemStack stack = shulker.getItem(i);
                 if (!stack.isEmpty()) {
                     items.add(new IndexedItem(
-                            stack.getItem().getName().getString(),
-                            stack.getItem().getTranslationKey(),
+                            stack.getItem().getName(stack).getString(),
+                            stack.getItem().getDescriptionId(),
                             stack.getCount(),
                             pos
                     ));
@@ -56,7 +58,7 @@ public class ContainerIndexService {
         return items;
     }
 
-    private static List<IndexedItem> indexContainersInRange(SearchTask task, ServerWorld world, BlockPos center, int range) {
+    private static List<IndexedItem> indexContainersInRange(SearchTask task, Level world, BlockPos center, int range) {
         List<IndexedItem> allItems = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new LinkedList<>();
@@ -93,7 +95,7 @@ public class ContainerIndexService {
 
                 // Send message when a container is indexed
                 if (task.source != null) {
-                    task.source.sendMessage(task.createIndexedContainerMessage(current));
+                    task.source.sendSystemMessage(task.createIndexedContainerMessage(current));
                 }
             }
 
@@ -132,18 +134,18 @@ public class ContainerIndexService {
         return allItems;
     }
 
-    private static Text createIndexResultMessage(List<IndexedItem> items, int totalContainersSearched) {
+    private static Component createIndexResultMessage(List<IndexedItem> items, int totalContainersSearched) {
         if (items.isEmpty()) {
-            return Text.translatable("info.cif.instant.index.not_found")
-                    .formatted(Formatting.RED);
+            return Component.translatable("info.cif.instant.index.not_found")
+                    .withStyle(ChatFormatting.RED);
         }
 
-        MutableText message = Text.empty();
+        MutableComponent message = Component.empty();
 
         // First line: Summary
-        message.append(Text.translatable("info.cif.instant.index.summary_1", items.size(), totalContainersSearched)
-                        .formatted(Formatting.GREEN))
-                .append(Text.literal("\n"));
+        message.append(Component.translatable("info.cif.instant.index.summary_1", items.size(), totalContainersSearched)
+                        .withStyle(ChatFormatting.GREEN))
+                .append(Component.literal("\n"));
 
         // Group items by name and count total
         Map<String, Integer> itemTotals = new HashMap<>();
@@ -165,26 +167,26 @@ public class ContainerIndexService {
             int totalCount = entry.getValue();
             List<BlockPos> locations = itemLocations.get(itemName);
 
-            message.append(Text.translatable("info.cif.instant.index.item_partial",
+            message.append(Component.translatable("info.cif.instant.index.item_partial",
                             totalCount, itemName, locations.size())
-                    .formatted(Formatting.AQUA))
-                    .append(Text.literal("\n"));
+                    .withStyle(ChatFormatting.AQUA))
+                    .append(Component.literal("\n"));
         }
 
         return message;
     }
 
-    public Text indexContainers(ServerCommandSource source, ServerWorld world, Vec3d center, int range) {
-        if (!source.isExecutedByPlayer()) {
-            return Text.translatable("info.cif.player_only").formatted(Formatting.RED);
+    public Component indexContainers(CommandSourceStack source, Level world, Vec3 center, int range) {
+        if (!source.isPlayer()) {
+            return Component.translatable("info.cif.player_only").withStyle(ChatFormatting.RED);
         }
 
-        ServerPlayerEntity player = source.getPlayer();
+        var player = source.getPlayer();
         assert player != null;
 
-        UUID playerId = player.getUuid();
+        UUID playerId = player.getUUID();
         if (activeTasks.containsKey(playerId)) {
-            return Text.translatable("info.cif.instant.task_wip").formatted(Formatting.RED);
+            return Component.translatable("info.cif.instant.task_wip").withStyle(ChatFormatting.RED);
         }
 
         SearchTask task = new SearchTask(player, world, center, range);
@@ -199,17 +201,17 @@ public class ContainerIndexService {
         }
     }
 
-    public Text cancelSearch(ServerCommandSource source) {
-        if (!source.isExecutedByPlayer()) {
-            return Text.translatable("info.cif.player_only").formatted(Formatting.RED);
+    public Component cancelSearch(CommandSourceStack source) {
+        if (!source.isPlayer()) {
+            return Component.translatable("info.cif.player_only").withStyle(ChatFormatting.RED);
         }
 
-        ServerPlayerEntity player = source.getPlayer();
+        Player player = source.getPlayer();
         assert player != null;
 
-        SearchTask task = activeTasks.remove(player.getUuid());
+        SearchTask task = activeTasks.remove(player.getUUID());
         if (task == null) {
-            return Text.translatable("info.cif.instant.no_active").formatted(Formatting.RED);
+            return Component.translatable("info.cif.instant.no_active").withStyle(ChatFormatting.RED);
         }
 
         return task.cancel();
@@ -217,51 +219,51 @@ public class ContainerIndexService {
 
     public static class SearchTask {
         private static final long HEARTBEAT_INTERVAL = 10_000; // 10 seconds in milliseconds
-        private final ServerPlayerEntity source;
-        private final ServerWorld world;
-        private final Vec3d center;
+        private final ServerPlayer source;
+        private final Level world;
+        private final Vec3 center;
         private final int range;
         private final AtomicInteger blocksSearched = new AtomicInteger(0);
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private long lastHeartbeatTime = 0;
         private int totalContainersSearched = 0;
 
-        public SearchTask(ServerPlayerEntity source, ServerWorld world, Vec3d center, int range) {
+        public SearchTask(ServerPlayer source, Level world, Vec3 center, int range) {
             this.source = source;
             this.world = world;
             this.center = center;
             this.range = range;
         }
 
-        private Text createHeartbeatMessage(int blocksSearched, double currentDistance) {
-            return Text.translatable("info.cif.instant.index.heartbeat",
+        private Component createHeartbeatMessage(int blocksSearched, double currentDistance) {
+            return Component.translatable("info.cif.instant.index.heartbeat",
                             blocksSearched, currentDistance)
-                    .formatted(Formatting.GRAY);
+                    .withStyle(ChatFormatting.GRAY);
         }
 
-        private Text createIndexedContainerMessage(BlockPos pos) {
-            return Text.translatable("info.cif.instant.index.found",
+        private Component createIndexedContainerMessage(BlockPos pos) {
+            return Component.translatable("info.cif.instant.index.found",
                             pos.getX(), pos.getY(), pos.getZ())
-                    .formatted(Formatting.GRAY);
+                    .withStyle(ChatFormatting.GRAY);
         }
 
-        private Text createCancelledMessage(int blocksSearched, double lastDistance) {
-            return Text.translatable("info.cif.instant.index.cancel_info",
+        private Component createCancelledMessage(int blocksSearched, double lastDistance) {
+            return Component.translatable("info.cif.instant.index.cancel_info",
                             blocksSearched, lastDistance)
-                    .formatted(Formatting.YELLOW);
+                    .withStyle(ChatFormatting.YELLOW);
         }
 
         private void sendHeartbeat(double currentDistance) {
             if (source != null && !cancelled.get()) {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - lastHeartbeatTime >= HEARTBEAT_INTERVAL) {
-                    source.sendMessage(createHeartbeatMessage(blocksSearched.get(), currentDistance));
+                    source.sendSystemMessage(createHeartbeatMessage(blocksSearched.get(), currentDistance));
                     lastHeartbeatTime = currentTime;
                 }
             }
         }
 
-        public Text cancel() {
+        public Component cancel() {
             if (cancelled.compareAndSet(false, true) && source != null) {
                 return createCancelledMessage(blocksSearched.get(),
                         Math.sqrt(
@@ -270,7 +272,7 @@ public class ContainerIndexService {
                                         Math.pow(center.z, 2)
                         ));
             }
-            return Text.translatable("info.cif.instant.index.cancel").formatted(Formatting.YELLOW);
+            return Component.translatable("info.cif.instant.index.cancel").withStyle(ChatFormatting.YELLOW);
         }
 
         public boolean isCancelled() {

@@ -1,9 +1,9 @@
 package space.ranzeplay.containeritemfinder.command;
 
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.Text;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 import space.ranzeplay.containeritemfinder.Main;
 import space.ranzeplay.containeritemfinder.service.ContainerSearchService;
 import space.ranzeplay.containeritemfinder.service.ContainerIndexService;
@@ -23,14 +23,15 @@ public class ContainerCommandManager {
 
     public void register() {
         Main.getLogger().info("Registering commands");
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+        CommandRegistrationCallback.EVENT.register((dispatcher, _, _) -> {
             // Register cancel command
             dispatcher.register(
-                CommandManager.literal("cif")
-                    .then(CommandManager.literal("cancel")
+                LiteralArgumentBuilder.<CommandSourceStack>literal("cif")
+                    .then(LiteralArgumentBuilder.<CommandSourceStack>literal("cancel")
                         .executes(context -> {
-                            Text result = searchService.cancelSearch(context.getSource());
-                            context.getSource().sendMessage(result);
+                            var source = context.getSource();
+                            Component result = searchService.cancelSearch(source);
+                            source.sendSystemMessage(result);
                             return 1;
                         }))
             );
@@ -42,4 +43,4 @@ public class ContainerCommandManager {
 
         databaseCommands.register();
     }
-} 
+}
