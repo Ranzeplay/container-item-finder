@@ -464,7 +464,7 @@ public class TrackingService {
                     try {
                         Level world = null;
                         for (var w : server.getAllLevels()) {
-                            if (w.dimension().registryKey().identifier().equals(Identifier.tryParse(task.getLocation().getWorld()))) {
+                            if (w.dimension().identifier().equals(Identifier.tryParse(task.getLocation().getWorld()))) {
                                 world = w;
                                 break;
                             }

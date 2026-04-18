@@ -10,7 +10,7 @@ import net.minecraft.world.level.Level;
 public class Location extends Point {
     public Location(Level world, BlockPos pos) {
         super(pos.getX(), pos.getY(), pos.getZ());
-        this.world = world.dimension().registryKey().toString();
+        this.world = world.dimension().identifier().toString();
     }
 
     private final String world;
