@@ -157,7 +157,7 @@ public class TrackingService {
     }
 
     @SneakyThrows
-    public void searchTrackingItem(CommandSource commandSource, Level world, Vec3 center, Integer range, Item targetItem, Integer requiredCount) {
+    public void searchTrackingItem(CommandSource commandSource, Level level, Vec3 center, Integer range, Item targetItem, Integer requiredCount) {
         PreparedStatement statement;
 
         if (range == null) {
@@ -200,7 +200,7 @@ public class TrackingService {
         statement.setInt(2, (int) center.y());
         statement.setInt(3, (int) center.z());
         statement.setString(4, itemId);
-        statement.setString(5, world.dimension().registryKey().toString());
+        statement.setString(5, level.dimension().registryKey().toString());
         if (range != null) {
             statement.setInt(6, range);
         }
@@ -264,17 +264,17 @@ public class TrackingService {
     }
 
     private void scanAABB(MinecraftServer server, AABB area) throws SQLException {
-        var worlds = server.getAllLevels();
-        Level world = null;
-        for (var w : worlds) {
-            if (world.dimension().registryKey().identifier().equals(Identifier.tryParse(area.getWorld()))) {
-                world = w;
+        var levels = server.getAllLevels();
+        Level level = null;
+        for (var w : levels) {
+            if (level.dimension().identifier().equals(Identifier.tryParse(area.getWorld()))) {
+                level = w;
                 break;
             }
         }
 
-        if (world == null) {
-            logger.warn("World {} not found, skipping tracking area", area.getWorld());
+        if (level == null) {
+            logger.warn("Level {} not found, skipping tracking area", area.getWorld());
             return;
         }
 
@@ -306,19 +306,19 @@ public class TrackingService {
         for (int x = fromX; x <= toX; x++) {
             for (int y = fromY; y <= toY; y++) {
                 for (int z = fromZ; z <= toZ; z++) {
-                    scanOne(world, new BlockPos(x, y, z), false);
+                    scanOne(level, new BlockPos(x, y, z), false);
                 }
             }
         }
     }
 
-    public void scanOne(Level world, BlockPos pos, boolean removeExisting) throws SQLException {
+    public void scanOne(Level level, BlockPos pos, boolean removeExisting) throws SQLException {
         if(removeExisting) {
-            removeBlockFromTracking(pos, world);
+            removeBlockFromTracking(pos, level);
         }
 
-        var blockState = world.getBlockState(pos);
-        var blockEntity = world.getChunk(pos).getBlockEntity(pos);
+        var blockState = level.getBlockState(pos);
+        var blockEntity = level.getChunk(pos).getBlockEntity(pos);
 
         HashMap<String, Integer> items = tryGetContainerItems(blockEntity);
         if (items.isEmpty()) {
@@ -329,7 +329,7 @@ public class TrackingService {
         var dbInsertStmt = connection.prepareStatement(
                 "INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?) RETURNING id"
         );
-        dbInsertStmt.setString(1, world.dimension().registryKey().toString());
+        dbInsertStmt.setString(1, level.dimension().registryKey().toString());
         dbInsertStmt.setInt(2, pos.getX());
         dbInsertStmt.setInt(3, pos.getY());
         dbInsertStmt.setInt(4, pos.getZ());
@@ -430,14 +430,14 @@ public class TrackingService {
         return items;
     }
 
-    public void queueScan(Vec3 location, Level world, int radius) {
+    public void queueScan(Vec3 location, Level level, int radius) {
         instantScanQueue.add((server) -> {
             try {
                 Point p1 = new Point((int) (location.x() - radius), (int) (location.y() - radius), (int) (location.z() - radius));
                 Point p2 = new Point((int) (location.x() + radius), (int) (location.y() + radius), (int) (location.z() + radius));
-                AABB aabb = new AABB(p1, p2, world.dimension().registryKey().toString());
+                AABB aabb = new AABB(p1, p2, level.dimension().registryKey().toString());
 
-                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.x(), location.y(), location.z()), world.dimension().registryKey().toString());
+                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.x(), location.y(), location.z()), level.dimension().registryKey().toString());
                 scanAABB(server, aabb);
 
             } catch (SQLException e) {
@@ -462,16 +462,16 @@ public class TrackingService {
             if (task != null) {
                 instantScanQueue.add((s) -> {
                     try {
-                        Level world = null;
+                        Level level = null;
                         for (var w : server.getAllLevels()) {
-                            if (w.dimension().identifier().equals(Identifier.tryParse(task.getLocation().getWorld()))) {
-                                world = w;
+                            if (w.dimension().identifier().equals(Identifier.tryParse(task.getLocation().getLevel()))) {
+                                level = w;
                                 break;
                             }
                         }
 
-                        scanOne(world, task.getLocation().toBlockPos(), true);
-                        logger.debug("Performed delayed scan at {} @ {}", task.getLocation().toString(), task.getLocation().getWorld());
+                        scanOne(level, task.getLocation().toBlockPos(), true);
+                        logger.debug("Performed delayed scan at {} @ {}", task.getLocation().toString(), task.getLocation().getLevel());
                     } catch (SQLException e) {
                         logger.error("Failed to perform delayed scan: ", e);
                     }
@@ -488,7 +488,7 @@ public class TrackingService {
         }
     }
 
-    public void removeBlockFromTracking(BlockPos pos, Level world) {
+    public void removeBlockFromTracking(BlockPos pos, Level level) {
         if (connection == null) {
             return;
         }
@@ -497,7 +497,7 @@ public class TrackingService {
             var stmt = connection.prepareStatement(
                     "DELETE FROM containers WHERE world = ? AND x = ? AND y = ? AND z = ?"
             );
-            stmt.setString(1, world.dimension().registryKey().toString());
+            stmt.setString(1, level.dimension().registryKey().toString());
             stmt.setInt(2, pos.getX());
             stmt.setInt(3, pos.getY());
             stmt.setInt(4, pos.getZ());

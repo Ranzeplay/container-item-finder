@@ -1,7 +1,6 @@
 package space.ranzeplay.containeritemfinder.service;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -58,7 +57,7 @@ public class ContainerIndexService {
         return items;
     }
 
-    private static List<IndexedItem> indexContainersInRange(SearchTask task, Level world, BlockPos center, int range) {
+    private static List<IndexedItem> indexContainersInRange(SearchTask task, Level level, BlockPos center, int range) {
         List<IndexedItem> allItems = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new LinkedList<>();
@@ -88,7 +87,7 @@ public class ContainerIndexService {
             nodesAtCurrentDistance--;
 
             // Check if current position has a container
-            BlockEntity blockEntity = world.getChunk(current).getBlockEntity(current);
+            BlockEntity blockEntity = level.getChunk(current).getBlockEntity(current);
             if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
                 totalContainersSearched++;
                 allItems.addAll(indexItemsInContainer(blockEntity, current));
@@ -176,7 +175,7 @@ public class ContainerIndexService {
         return message;
     }
 
-    public Component indexContainers(CommandSourceStack source, Level world, Vec3 center, int range) {
+    public Component indexContainers(CommandSourceStack source, Level level, Vec3 center, int range) {
         if (!source.isPlayer()) {
             return Component.translatable("info.cif.player_only").withStyle(ChatFormatting.RED);
         }
@@ -189,12 +188,12 @@ public class ContainerIndexService {
             return Component.translatable("info.cif.instant.task_wip").withStyle(ChatFormatting.RED);
         }
 
-        SearchTask task = new SearchTask(player, world, center, range);
+        SearchTask task = new SearchTask(player, level, center, range);
         activeTasks.put(playerId, task);
 
         try {
             BlockPos blockCenter = new BlockPos((int) center.x, (int) center.y, (int) center.z);
-            List<IndexedItem> items = indexContainersInRange(task, world, blockCenter, range);
+            List<IndexedItem> items = indexContainersInRange(task, level, blockCenter, range);
             return createIndexResultMessage(items, task.totalContainersSearched);
         } finally {
             activeTasks.remove(playerId);
@@ -220,7 +219,7 @@ public class ContainerIndexService {
     public static class SearchTask {
         private static final long HEARTBEAT_INTERVAL = 10_000; // 10 seconds in milliseconds
         private final ServerPlayer source;
-        private final Level world;
+        private final Level level;
         private final Vec3 center;
         private final int range;
         private final AtomicInteger blocksSearched = new AtomicInteger(0);
@@ -228,9 +227,9 @@ public class ContainerIndexService {
         private long lastHeartbeatTime = 0;
         private int totalContainersSearched = 0;
 
-        public SearchTask(ServerPlayer source, Level world, Vec3 center, int range) {
+        public SearchTask(ServerPlayer source, Level level, Vec3 center, int range) {
             this.source = source;
-            this.world = world;
+            this.level = level;
             this.center = center;
             this.range = range;
         }

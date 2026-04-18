@@ -5,7 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "BlockEntityMixin",
-    "LootableContainerBlockEntityMixin"
+    "RandomizableContainerBlockEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

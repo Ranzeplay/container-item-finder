@@ -14,7 +14,7 @@ import space.ranzeplay.containeritemfinder.models.Location;
 import java.util.Objects;
 
 @Mixin(RandomizableContainerBlockEntity.class)
-public class LootableContainerBlockEntityMixin extends BlockEntityMixin {
+public class RandomizableContainerBlockEntityMixin extends BlockEntityMixin {
     @Inject(method = "setItem", at = @At("HEAD"))
     private void onSetItem(int slot, ItemStack stack, CallbackInfo ci) {
         var self = (RandomizableContainerBlockEntity) (Object) this;

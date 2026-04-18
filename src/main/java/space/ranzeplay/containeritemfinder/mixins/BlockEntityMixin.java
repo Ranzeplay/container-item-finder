@@ -10,9 +10,11 @@ import org.spongepowered.asm.mixin.Shadow;
 @Mixin(BlockEntity.class)
 public class BlockEntityMixin {
     @Shadow
+    @SuppressWarnings("unused")
     protected Level level;
 
     @Final
     @Shadow
+    @SuppressWarnings("unused")
     protected BlockPos worldPosition;
 }

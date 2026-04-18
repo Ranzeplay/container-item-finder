@@ -8,10 +8,10 @@ import net.minecraft.world.level.Level;
 @Getter
 @EqualsAndHashCode(callSuper = true)
 public class Location extends Point {
-    public Location(Level world, BlockPos pos) {
+    public Location(Level level, BlockPos pos) {
         super(pos.getX(), pos.getY(), pos.getZ());
-        this.world = world.dimension().identifier().toString();
+        this.level = level.dimension().identifier().toString();
     }
 
-    private final String world;
+    private final String level;
 }
