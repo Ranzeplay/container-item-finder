@@ -374,15 +374,10 @@ public class TrackingService {
             ItemStack stack = container.getItem(i);
             if (!stack.isEmpty()) {
                 var itemId = stack.getItem().getDescriptionId();
-                items.put(itemId, items.getOrDefault(itemId, 0) + stack.getCount());
+                items.merge(itemId, stack.getCount(), Integer::sum);
 
-                tryGetAsShulkerBoxItems(stack).forEach((k, v) -> {
-                    items.put(k, items.getOrDefault(k, 0) + v);
-                });
-
-                tryGetAsBundleItems(stack).forEach((k, v) -> {
-                    items.put(k, items.getOrDefault(k, 0) + v);
-                });
+                tryGetAsShulkerBoxItems(stack).forEach((k, v) -> items.merge(k, v, Integer::sum));
+                tryGetAsBundleItems(stack).forEach((k, v) -> items.merge(k, v, Integer::sum));
             }
         }
         return items;
@@ -398,11 +393,8 @@ public class TrackingService {
                     for(var innerStack : containerComponent.allItemsCopyStream().toList()) {
                         if (!innerStack.isEmpty()) {
                             var innerItemId = innerStack.getItem().getDescriptionId();
-                            items.put(innerItemId, items.getOrDefault(innerItemId, 0) + innerStack.getCount());
-
-                            tryGetAsBundleItems(innerStack).forEach((k, v) -> {
-                                items.put(k, items.getOrDefault(k, 0) + v);
-                            });
+                            items.merge(innerItemId, innerStack.getCount(), Integer::sum);
+                            tryGetAsBundleItems(innerStack).forEach((k, v) -> items.merge(k, v, Integer::sum));
                         }
                     }
                 }
@@ -421,7 +413,7 @@ public class TrackingService {
                 for(var innerStack : containerComponent.itemCopyStream().toList()) {
                     if (!innerStack.isEmpty()) {
                         var innerItemId = innerStack.getItem().getDescriptionId();
-                        items.put(innerItemId, items.getOrDefault(innerItemId, 0) + innerStack.getCount());
+                        items.merge(innerItemId, innerStack.getCount(), Integer::sum);
                     }
                 }
             }
