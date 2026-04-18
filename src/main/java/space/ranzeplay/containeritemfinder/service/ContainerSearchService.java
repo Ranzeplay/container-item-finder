@@ -11,12 +11,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ContainerSearchService {
@@ -30,105 +30,36 @@ public class ContainerSearchService {
     }
 
     private static int countItemsInContainer(BlockEntity container, Item targetItem) {
-        int totalCount = 0;
-
+        RandomizableContainerBlockEntity c;
         if (container instanceof ChestBlockEntity chest) {
-            for (int i = 0; i < chest.getContainerSize(); i++) {
-                ItemStack stack = chest.getItem(i);
-                totalCount += countItemsInStack(stack, targetItem);
-            }
+            c = chest;
         } else if (container instanceof ShulkerBoxBlockEntity shulker) {
-            for (int i = 0; i < shulker.getContainerSize(); i++) {
-                ItemStack stack = shulker.getItem(i);
-                totalCount += countItemsInStack(stack, targetItem);
-            }
+            c = shulker;
+        } else {
+            return 0;
         }
-
+        int totalCount = 0;
+        for (int i = 0; i < c.getContainerSize(); i++) {
+            totalCount += countItemsInStack(c.getItem(i), targetItem);
+        }
         return totalCount;
     }
 
     private static List<ContainerInfo> findContainersInRange(SearchTask task, Level level, BlockPos center, int range, Item targetItem, int requiredCount) {
         List<ContainerInfo> containers = new ArrayList<>();
-        Set<BlockPos> visited = new HashSet<>();
-        Queue<BlockPos> queue = new LinkedList<>();
-        int totalFound = 0;
-        int totalContainersSearched = 0;
-
-        // Start with center position
-        queue.offer(center);
-        visited.add(center);
-
-        // BFS directions (6 directions: up, down, north, south, east, west)
-        int[][] directions = {
-                {0, 1, 0},  // up
-                {0, -1, 0}, // down
-                {0, 0, -1}, // north
-                {0, 0, 1},  // south
-                {1, 0, 0},  // east
-                {-1, 0, 0}  // west
-        };
-
-        int currentDistance = 0;
-        int nodesAtCurrentDistance = 1;
-        int nodesAtNextDistance = 0;
-
-        while (!queue.isEmpty() && (requiredCount <= 0 || totalFound < requiredCount) && !task.isCancelled()) {
-            BlockPos current = queue.poll();
-            assert current != null;
-            nodesAtCurrentDistance--;
-
-            // Check if current position has a container with target item
-            BlockEntity blockEntity = level.getChunk(current).getBlockEntity(current);
-            if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof ShulkerBoxBlockEntity) {
-                totalContainersSearched++;
-                int itemCount = countItemsInContainer(blockEntity, targetItem);
-                if (itemCount > 0) {
-                    containers.add(new ContainerInfo(current, itemCount));
-                    totalFound += itemCount;
-
-                    // Send message when a container with target items is found
-                    if (task.source != null) {
-                        task.source.sendSystemMessage(task.createFoundItemMessage(itemCount, current));
-                    }
-
-                    if (requiredCount > 0 && totalFound >= requiredCount) {
-                        break;
-                    }
+        AtomicInteger totalFound = new AtomicInteger(0);
+        task.totalContainersSearched = ContainerBFSUtil.scan(level, center, range, task, (blockEntity, pos) -> {
+            int itemCount = countItemsInContainer(blockEntity, targetItem);
+            if (itemCount > 0) {
+                containers.add(new ContainerInfo(pos, itemCount));
+                totalFound.addAndGet(itemCount);
+                if (task.source != null) {
+                    task.source.sendSystemMessage(task.createFoundItemMessage(itemCount, pos));
                 }
+                return requiredCount > 0 && totalFound.get() >= requiredCount;
             }
-
-            // If we haven't reached max range, explore neighbors
-            if (currentDistance < range) {
-                for (int[] dir : directions) {
-                    BlockPos nextPos = new BlockPos(
-                            current.getX() + dir[0],
-                            current.getY() + dir[1],
-                            current.getZ() + dir[2]
-                    );
-
-                    if (!visited.contains(nextPos)) {
-                        visited.add(nextPos);
-                        queue.offer(nextPos);
-                        nodesAtNextDistance++;
-                    }
-                }
-            }
-
-            if (nodesAtCurrentDistance == 0) {
-                currentDistance++;
-                nodesAtCurrentDistance = nodesAtNextDistance;
-                nodesAtNextDistance = 0;
-            }
-
-            // Update blocks searched count and send heartbeat
-            task.blocksSearched.incrementAndGet();
-            double distance = Math.sqrt(
-                    Math.pow(current.getX() - center.getX(), 2) + Math.pow(current.getY() - center.getY(), 2) + Math.pow(current.getZ() - center.getZ(), 2)
-            );
-            task.sendHeartbeat(distance);
-        }
-
-        task.totalContainersSearched = totalContainersSearched;
+            return false;
+        });
         return containers;
     }
 
@@ -228,69 +159,28 @@ public class ContainerSearchService {
     private record ContainerInfo(BlockPos pos, int itemCount) {
     }
 
-    public static class SearchTask {
-        private static final long HEARTBEAT_INTERVAL = 10_000; // 10 seconds in milliseconds
-        private final ServerPlayer source;
+    public static class SearchTask extends BaseSearchTask {
         private final Level level;
-        private final Vec3 center;
         private final int range;
         private final Item targetItem;
         private final int requiredCount;
-        private final AtomicInteger blocksSearched = new AtomicInteger(0);
-        private final AtomicBoolean cancelled = new AtomicBoolean(false);
-        private long lastHeartbeatTime = 0;
-        private int totalContainersSearched = 0;
 
         public SearchTask(ServerPlayer source, Level level, Vec3 center, int range, Item targetItem, int requiredCount) {
-            this.source = source;
+            super(source, center,
+                    "info.cif.instant.search.heartbeat",
+                    "info.cif.instant.search.cancel_info",
+                    "info.cif.instant.search.cancel");
             this.level = level;
-            this.center = center;
             this.range = range;
             this.targetItem = targetItem;
             this.requiredCount = requiredCount;
         }
 
-        private Component createHeartbeatMessage(int blocksSearched, double currentDistance) {
-            return Component.translatable("info.cif.instant.search.heartbeat", blocksSearched, currentDistance)
-                    .withStyle(ChatFormatting.GRAY);
-        }
-
-        private Component createFoundItemMessage(int itemCount, BlockPos pos) {
+        Component createFoundItemMessage(int itemCount, BlockPos pos) {
             return Component.translatable("info.cif.instant.search.found",
                             itemCount, Component.translatable(targetItem.getDescriptionId()).getString(),
                             pos.getX(), pos.getY(), pos.getZ())
                     .withStyle(ChatFormatting.GRAY);
-        }
-
-        private Component createCancelledMessage(int blocksSearched, double lastDistance) {
-            return Component.translatable("info.cif.instant.search.cancel_info", blocksSearched, lastDistance)
-                    .withStyle(ChatFormatting.YELLOW);
-        }
-
-        private void sendHeartbeat(double currentDistance) {
-            if (source != null && !cancelled.get()) {
-                long currentTime = System.currentTimeMillis();
-                if (currentTime - lastHeartbeatTime >= HEARTBEAT_INTERVAL) {
-                    source.sendSystemMessage(createHeartbeatMessage(blocksSearched.get(), currentDistance));
-                    lastHeartbeatTime = currentTime;
-                }
-            }
-        }
-
-        public Component cancel() {
-            if (cancelled.compareAndSet(false, true) && source != null) {
-                return createCancelledMessage(blocksSearched.get(),
-                        Math.sqrt(
-                                Math.pow(center.x, 2) +
-                                        Math.pow(center.y, 2) +
-                                        Math.pow(center.z, 2)
-                        ));
-            }
-            return Component.translatable("info.cif.instant.search.cancel").withStyle(ChatFormatting.YELLOW);
-        }
-
-        public boolean isCancelled() {
-            return cancelled.get();
         }
 
         public Component execute() {
@@ -307,3 +197,4 @@ public class ContainerSearchService {
         }
     }
 }
+
