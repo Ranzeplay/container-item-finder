@@ -132,8 +132,8 @@ Edit this file to customize mod behavior for your server.
 
 ### Prerequisites
 
-- Java 21 or higher
-- Gradle
+- Java 25 or higher
+- Gradle (optional if using wrapper)
 
 ### Building from Source
 
