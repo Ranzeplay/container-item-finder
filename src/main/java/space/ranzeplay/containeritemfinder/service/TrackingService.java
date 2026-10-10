@@ -390,7 +390,7 @@ public class TrackingService {
             if (blockItem.getBlock() instanceof ShulkerBoxBlock) {
                 var containerComponent = stack.get(DataComponents.CONTAINER);
                 if (containerComponent != null) {
-                    for(var innerStack : containerComponent.allItemsCopyStream().toList()) {
+                    for(var innerStack : containerComponent.itemCopies().toList()) {
                         if (!innerStack.isEmpty()) {
                             var innerItemId = innerStack.getItem().getDescriptionId();
                             items.merge(innerItemId, innerStack.getCount(), Integer::sum);
@@ -410,7 +410,7 @@ public class TrackingService {
         if (stack.getItem().getDescriptionId().equals("item.minecraft.bundle")) {
             var containerComponent = stack.get(DataComponents.BUNDLE_CONTENTS);
             if (containerComponent != null) {
-                for(var innerStack : containerComponent.itemCopyStream().toList()) {
+                for(var innerStack : containerComponent.itemCopies().toList()) {
                     if (!innerStack.isEmpty()) {
                         var innerItemId = innerStack.getItem().getDescriptionId();
                         items.merge(innerItemId, innerStack.getCount(), Integer::sum);

@@ -51,7 +51,7 @@ public class Main implements ModInitializer {
                     trackingService.applyScanQueue(server);
                 });
 
-                PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, entity) -> {
+                PlayerBlockBreakEvents.AFTER.register((world, _, pos, _, entity) -> {
                     if (entity instanceof ChestBlockEntity || entity instanceof ShulkerBoxBlockEntity) {
                         trackingService.removeBlockFromTracking(pos, world);
                     }
