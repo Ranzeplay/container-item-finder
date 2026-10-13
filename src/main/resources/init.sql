@@ -31,3 +31,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE
                     STRICT;
+
+-- A unique index supports ON CONFLICT (x, y, z) without repeatedly adding a constraint.
+-- Keep this non-concurrent because startup executes the script as a single JDBC statement.
+CREATE UNIQUE INDEX IF NOT EXISTS containers_x_y_z_key
+    ON containers (x, y, z);

@@ -325,9 +325,14 @@ public class TrackingService {
             return;
         }
 
-        // Insert new entry
+        // Insert a new container or refresh the existing entry at these coordinates.
         var dbInsertStmt = connection.prepareStatement(
-                "INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?) RETURNING id"
+                """
+                        INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT (x, y, z) DO UPDATE
+                        SET world = EXCLUDED.world, block = EXCLUDED.block
+                        RETURNING id
+                        """
         );
         dbInsertStmt.setString(1, level.dimension().registryKey().toString());
         dbInsertStmt.setInt(2, pos.getX());
@@ -343,6 +348,14 @@ public class TrackingService {
         var containerId = (UUID) dbInsertRs.getObject("id");
 
         dbInsertStmt.close();
+
+        // Replace the item snapshot when the container already existed.
+        try (var dbClearItemsStmt = connection.prepareStatement(
+                "DELETE FROM items WHERE container = ?"
+        )) {
+            dbClearItemsStmt.setObject(1, containerId);
+            dbClearItemsStmt.executeUpdate();
+        }
 
         var dbItemStmt = connection.prepareStatement(
                 "INSERT INTO items (item, count, container) VALUES (?, ?, ?)"
