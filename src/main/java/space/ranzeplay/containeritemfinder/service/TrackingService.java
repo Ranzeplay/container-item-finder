@@ -267,7 +267,7 @@ public class TrackingService {
         var levels = server.getAllLevels();
         Level level = null;
         for (var w : levels) {
-            if (level.dimension().identifier().equals(Identifier.tryParse(area.getWorld()))) {
+            if (w.dimension().identifier().equals(Identifier.tryParse(area.getWorld()))) {
                 level = w;
                 break;
             }
@@ -429,7 +429,7 @@ public class TrackingService {
                 Point p2 = new Point((int) (location.x() + radius), (int) (location.y() + radius), (int) (location.z() + radius));
                 AABB aabb = new AABB(p1, p2, level.dimension().registryKey().toString());
 
-                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.x(), location.y(), location.z()), level.dimension().registryKey().toString());
+                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.x(), location.y(), location.z()), level.dimension().registryKey());
                 scanAABB(server, aabb);
 
             } catch (SQLException e) {
@@ -455,7 +455,7 @@ public class TrackingService {
                 instantScanQueue.add((s) -> {
                     try {
                         Level level = null;
-                        for (var w : server.getAllLevels()) {
+                        for (var w : s.getAllLevels()) {
                             if (w.dimension().identifier().equals(Identifier.tryParse(task.getLocation().getLevel()))) {
                                 level = w;
                                 break;
