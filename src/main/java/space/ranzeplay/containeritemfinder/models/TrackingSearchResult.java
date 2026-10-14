@@ -22,7 +22,7 @@ public class TrackingSearchResult {
         this.x = rs.getInt("x");
         this.y = rs.getInt("y");
         this.z = rs.getInt("z");
-        this.distance = rs.getDouble("dist");
+        this.distance = Math.sqrt(rs.getDouble("distance_squared"));
     }
 
     public Component toText() {

@@ -114,6 +114,7 @@ The mod uses a config file located at `run/config/cif.json`. Example:
     }
   ],
   "refreshIntervalMinutes": 3,
+  "databaseType": "postgresql",
   "databaseConnectionString": "jdbc:postgresql://localhost:5432/cif?user=postgres&password=postgres",
   "indexThreads": 4
 }
@@ -123,10 +124,24 @@ The mod uses a config file located at `run/config/cif.json`. Example:
 - `enableTracking`: Enables/disables container tracking.
 - `trackingAreas`: List of areas to track, defined by two points (`p1`, `p2`) and a world name.
 - `refreshIntervalMinutes`: How often to refresh tracking data (in minutes).
+- `databaseType`: Database backend: `postgresql` (default), `mysql`, `mariadb`, or `sqlite`. Values are case-insensitive. Existing configurations without this entry continue to use PostgreSQL.
 - `databaseConnectionString`: JDBC connection string for the database backend.
 - `indexThreads`: Number of threads used for indexing containers.
 
 Edit this file to customize mod behavior for your server.
+
+### Database connections
+
+All backends use `databaseConnectionString`, a JDBC connection URL. JDBC drivers are bundled with the mod. Set `enableTracking` to `true` to enable database tracking.
+
+| `databaseType` | Example `databaseConnectionString` |
+| --- | --- |
+| `postgresql` | `jdbc:postgresql://localhost:5432/cif?user=postgres&password=postgres` |
+| `mysql` | `jdbc:mysql://localhost:3306/cif?user=cif&password=secret` |
+| `mariadb` | `jdbc:mariadb://localhost:3306/cif?user=cif&password=secret` |
+| `sqlite` | `jdbc:sqlite:config/cif.db` |
+
+For PostgreSQL, MySQL, and MariaDB, create the database first and use an account that can create tables. Tables are initialized automatically. SQLite creates the file automatically; relative paths are resolved from the server's working directory, and the parent directory must already exist. Use `jdbc:sqlite:/absolute/path/cif.db` for an absolute path. Changing backends does not transfer existing tracking data; rescan the configured areas to populate the new database.
 
 ## Development
 

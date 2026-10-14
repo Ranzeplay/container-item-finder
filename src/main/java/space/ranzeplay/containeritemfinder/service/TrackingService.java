@@ -24,11 +24,7 @@ import org.slf4j.Logger;
 import space.ranzeplay.containeritemfinder.Main;
 import space.ranzeplay.containeritemfinder.models.*;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -39,7 +35,8 @@ import java.util.function.Consumer;
 
 
 public class TrackingService {
-    private Connection connection;
+    private final Connection connection;
+    private final DatabaseType databaseType;
     private final Logger logger;
     private final ThreadPoolExecutor scheduler;
     private final ThreadPoolExecutor instantScanScheduler;
@@ -58,8 +55,9 @@ public class TrackingService {
 
     private static final int LOCATION_SCAN_DELAY_MS = 5000;
 
-    public TrackingService(Config config) throws IOException, IllegalStateException {
+    public TrackingService(Config config) throws IllegalStateException {
         logger = Main.getLogger();
+        databaseType = DatabaseType.fromConfig(config.getDatabaseType());
 
         trackingAreas = config.getTrackingAreas();
         interval = config.getRefreshIntervalMinutes();
@@ -69,37 +67,9 @@ public class TrackingService {
         instantScanScheduler = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
         try {
-            connection = DriverManager.getConnection(config.getDatabaseConnectionString());
+            connection = databaseType.connect(config.getDatabaseConnectionString());
         } catch (Exception e) {
-            logger.error("Failed to connect to the database: ", e);
-            connection = null;
-            return;
-        }
-
-        // Migrate database schema
-        final var path = getClass().getClassLoader().getResource("init.sql");
-        if (path == null) {
-            logger.error("Failed to find database migration script.");
-            throw new IllegalStateException("Failed to find database migration script.");
-        }
-
-        final var stream = getClass().getClassLoader().getResourceAsStream("init.sql");
-        if (stream == null) {
-            logger.error("Failed to load database migration script.");
-            throw new IllegalStateException("Failed to load database migration script.");
-        }
-
-        var reader = new BufferedReader(new InputStreamReader(stream));
-        var sql = reader.lines().reduce("", (a, b) -> a + "\n" + b);
-        try (var stmt = connection.createStatement()) {
-            stmt.execute(sql);
-        } catch (Exception e) {
-            logger.error("Failed to migrate database schema: ", e);
-            connection = null;
-            throw new IllegalStateException("Failed to migrate database schema: ", e);
-        } finally {
-            reader.close();
-            stream.close();
+            throw new IllegalStateException("Failed to initialize tracking database", e);
         }
     }
 
@@ -158,81 +128,38 @@ public class TrackingService {
 
     @SneakyThrows
     public void searchTrackingItem(CommandSource commandSource, Level level, Vec3 center, Integer range, Item targetItem, Integer requiredCount) {
-        PreparedStatement statement;
+        try (PreparedStatement statement = connection.prepareStatement(
+                DatabaseType.searchSql(range != null, requiredCount != null))) {
+            var itemId = targetItem.getDescriptionId();
 
-        if (range == null) {
-            statement = connection.prepareStatement(
-                    """
-                            SELECT *
-                            FROM (
-                                     SELECT items.count, containers.world, containers.x, containers.y, containers.z,
-                                            distance(containers.x, containers.y, containers.z, ?, ?, ?) AS dist
-                                     FROM items
-                                              JOIN containers ON items.container = containers.id
-                                     WHERE items.item = ?
-                                       AND containers.world = ?
-                                 ) sub
-                            ORDER BY sub.dist DESC
-                            """
-            );
-        } else {
-            statement = connection.prepareStatement(
-                    """
-                            SELECT *
-                            FROM (
-                                     SELECT items.count, containers.world, containers.x, containers.y, containers.z,
-                                            distance(containers.x, containers.y, containers.z, ?, ?, ?) AS dist
-                                     FROM items
-                                              JOIN containers ON items.container = containers.id
-                                     WHERE items.item = ?
-                                       AND containers.world = ?
-                                 ) sub
-                            WHERE sub.dist <= ?
-                            ORDER BY sub.dist DESC
-                            """
-            );
-        }
-
-
-        var itemId = targetItem.getDescriptionId();
-
-        statement.setInt(1, (int) center.x());
-        statement.setInt(2, (int) center.y());
-        statement.setInt(3, (int) center.z());
-        statement.setString(4, itemId);
-        statement.setString(5, level.dimension().registryKey().toString());
-        if (range != null) {
-            statement.setInt(6, range);
-        }
-
-        var rs = statement.executeQuery();
-        var totalFound = 0;
-        if (requiredCount != null) {
-            rs.afterLast();
-            while (totalFound < requiredCount && rs.previous()) {
-                var result = new TrackingSearchResult(rs);
-                commandSource.sendSystemMessage(result.toText());
-                totalFound += result.getCount();
+            statement.setDouble(1, (int) center.x());
+            statement.setDouble(2, (int) center.y());
+            statement.setDouble(3, (int) center.z());
+            statement.setString(4, itemId);
+            statement.setString(5, level.dimension().registryKey().toString());
+            if (range != null) {
+                statement.setDouble(6, (double) range * range);
             }
 
-            if (totalFound < requiredCount) {
-                commandSource.sendSystemMessage(
-                        Component.translatable("info.cif.db.scan.not_enough", totalFound, requiredCount).withStyle(ChatFormatting.RED));
-            } else {
-                commandSource.sendSystemMessage(Component.translatable("info.cif.db.scan.complete", totalFound).withStyle(ChatFormatting.GREEN));
-            }
-        } else {
-            while (rs.next()) {
-                var result = new TrackingSearchResult(rs);
-                commandSource.sendSystemMessage(result.toText());
-                totalFound += result.getCount();
+            try (var rs = statement.executeQuery()) {
+                var totalFound = 0;
+                while ((requiredCount == null || totalFound < requiredCount) && rs.next()) {
+                    var result = new TrackingSearchResult(rs);
+                    commandSource.sendSystemMessage(result.toText());
+                    totalFound += result.getCount();
+                }
+
+                if (requiredCount != null && totalFound < requiredCount) {
+                    commandSource.sendSystemMessage(
+                            Component.translatable("info.cif.db.scan.not_enough", totalFound, requiredCount).withStyle(ChatFormatting.RED));
+                } else {
+                    commandSource.sendSystemMessage(Component.translatable("info.cif.db.scan.complete", totalFound).withStyle(ChatFormatting.GREEN));
+                }
             }
 
-            commandSource.sendSystemMessage(Component.translatable("info.cif.db.scan.complete", totalFound).withStyle(ChatFormatting.GREEN));
-        }
-
-        if (scanning) {
-            commandSource.sendSystemMessage(Component.translatable("info.cif.db.still_scanning").withStyle(ChatFormatting.YELLOW));
+            if (scanning) {
+                commandSource.sendSystemMessage(Component.translatable("info.cif.db.still_scanning").withStyle(ChatFormatting.YELLOW));
+            }
         }
     }
 
@@ -326,49 +253,49 @@ public class TrackingService {
         }
 
         // Insert a new container or refresh the existing entry at these coordinates.
-        var dbInsertStmt = connection.prepareStatement(
-                """
-                        INSERT INTO containers (world, x, y, z, block) VALUES (?, ?, ?, ?, ?)
-                        ON CONFLICT (x, y, z) DO UPDATE
-                        SET world = EXCLUDED.world, block = EXCLUDED.block
-                        RETURNING id
-                        """
-        );
-        dbInsertStmt.setString(1, level.dimension().registryKey().toString());
-        dbInsertStmt.setInt(2, pos.getX());
-        dbInsertStmt.setInt(3, pos.getY());
-        dbInsertStmt.setInt(4, pos.getZ());
-        dbInsertStmt.setString(5, blockState.getBlock().getDescriptionId());
-        var dbInsertRs = dbInsertStmt.executeQuery();
-        if (!dbInsertRs.next()) {
-            dbInsertStmt.close();
-            return;
+        try (var dbInsertStmt = connection.prepareStatement(databaseType.containerUpsertSql())) {
+            databaseType.bindId(dbInsertStmt, 1, UUID.randomUUID());
+            dbInsertStmt.setString(2, level.dimension().registryKey().toString());
+            dbInsertStmt.setInt(3, pos.getX());
+            dbInsertStmt.setInt(4, pos.getY());
+            dbInsertStmt.setInt(5, pos.getZ());
+            dbInsertStmt.setString(6, blockState.getBlock().getDescriptionId());
+            dbInsertStmt.executeUpdate();
         }
 
-        var containerId = (UUID) dbInsertRs.getObject("id");
-
-        dbInsertStmt.close();
+        UUID containerId;
+        try (var statement = connection.prepareStatement("SELECT id FROM containers WHERE x = ? AND y = ? AND z = ?")) {
+            statement.setInt(1, pos.getX());
+            statement.setInt(2, pos.getY());
+            statement.setInt(3, pos.getZ());
+            try (var result = statement.executeQuery()) {
+                if (!result.next()) {
+                    return;
+                }
+                containerId = UUID.fromString(result.getString("id"));
+            }
+        }
 
         // Replace the item snapshot when the container already existed.
         try (var dbClearItemsStmt = connection.prepareStatement(
                 "DELETE FROM items WHERE container = ?"
         )) {
-            dbClearItemsStmt.setObject(1, containerId);
+            databaseType.bindId(dbClearItemsStmt, 1, containerId);
             dbClearItemsStmt.executeUpdate();
         }
 
-        var dbItemStmt = connection.prepareStatement(
-                "INSERT INTO items (item, count, container) VALUES (?, ?, ?)"
-        );
-        for (var itemId : items.keySet()) {
-            dbItemStmt.clearParameters();
-            dbItemStmt.setString(1, itemId);
-            dbItemStmt.setInt(2, items.get(itemId));
-            dbItemStmt.setObject(3, containerId);
-            dbItemStmt.execute();
+        try (var dbItemStmt = connection.prepareStatement(
+                "INSERT INTO items (id, item, count, container) VALUES (?, ?, ?, ?)"
+        )) {
+            for (var itemId : items.keySet()) {
+                dbItemStmt.clearParameters();
+                databaseType.bindId(dbItemStmt, 1, UUID.randomUUID());
+                dbItemStmt.setString(2, itemId);
+                dbItemStmt.setInt(3, items.get(itemId));
+                databaseType.bindId(dbItemStmt, 4, containerId);
+                dbItemStmt.executeUpdate();
+            }
         }
-
-        dbItemStmt.close();
     }
 
     private static @NotNull HashMap<String, Integer> tryGetContainerItems(BlockEntity blockEntity) {

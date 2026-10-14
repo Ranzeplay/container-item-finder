@@ -40,12 +40,26 @@ dependencies {
 
     // https://mvnrepository.com/artifact/org.postgresql/postgresql
     implementation "org.postgresql:postgresql:${project.postgres_version}"
+    include "org.postgresql:postgresql:${project.postgres_version}"
+    implementation "com.mysql:mysql-connector-j:${project.mysql_version}"
+    include "com.mysql:mysql-connector-j:${project.mysql_version}"
+    implementation "org.mariadb.jdbc:mariadb-java-client:${project.mariadb_version}"
+    include "org.mariadb.jdbc:mariadb-java-client:${project.mariadb_version}"
+    implementation "org.xerial:sqlite-jdbc:${project.sqlite_version}"
+    include "org.xerial:sqlite-jdbc:${project.sqlite_version}"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation "com.google.code.gson:gson:${project.gson_version}"
 
     compileOnly "org.projectlombok:lombok:${project.lombok_version}"
     annotationProcessor "org.projectlombok:lombok:${project.lombok_version}"
+}
+
+test {
+    useJUnitPlatform()
 }
 
 processResources {

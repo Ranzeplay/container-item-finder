@@ -14,6 +14,100 @@ on:
     branches: [ "master" ]
 
 jobs:
+  sql-server-schemas:
+    name: SQL schema (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - database: postgresql
+            image: postgres:16
+            schema: src/main/resources/init.sql
+            healthcheck: pg_isready -U postgres -d cif
+          - database: mysql
+            image: mysql:8.4
+            schema: src/main/resources/init-mysql.sql
+            healthcheck: mysqladmin ping -h 127.0.0.1 -uroot -pcif_test_password
+          - database: mariadb
+            image: mariadb:11.4
+            schema: src/main/resources/init-mysql.sql
+            healthcheck: healthcheck.sh --connect --innodb_initialized
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          POSTGRES_DB: cif
+          POSTGRES_PASSWORD: cif_test_password
+          MYSQL_DATABASE: cif
+          MYSQL_ROOT_PASSWORD: cif_test_password
+          MARIADB_DATABASE: cif
+          MARIADB_ROOT_PASSWORD: cif_test_password
+        options: >-
+          --health-cmd="${{ matrix.healthcheck }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply schema twice and check SQL behavior
+        shell: bash
+        env:
+          DATABASE_TYPE: ${{ matrix.database }}
+          SCHEMA_FILE: ${{ matrix.schema }}
+          DATABASE_CONTAINER: ${{ job.services.database.id }}
+        run: |
+          set -euo pipefail
+          sql() {
+            case "$DATABASE_TYPE" in
+              postgresql)
+                docker exec -i "$DATABASE_CONTAINER" psql \
+                  -X --username=postgres --dbname=cif --set=ON_ERROR_STOP=1 --tuples-only --no-align --quiet
+                ;;
+              mysql)
+                docker exec -i -e MYSQL_PWD=cif_test_password "$DATABASE_CONTAINER" mysql \
+                  --user=root --database=cif --batch --skip-column-names
+                ;;
+              mariadb)
+                docker exec -i -e MYSQL_PWD=cif_test_password "$DATABASE_CONTAINER" mariadb \
+                  --user=root --database=cif --batch --skip-column-names
+                ;;
+            esac
+          }
+          sql < "$SCHEMA_FILE"
+          sql < "$SCHEMA_FILE"
+          result="$(sql < .github/sql/schema-smoke.sql)"
+          printf '%s\n' "$result"
+          [[ "$result" == $'1\n64\n0' ]]
+
+  sql-sqlite-schema:
+    name: SQL schema (sqlite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SQLite CLI
+        run: sudo apt-get update && sudo apt-get install --yes sqlite3
+      - name: Apply schema twice and check SQL behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          database_file="$RUNNER_TEMP/cif-schema-test.db"
+          sql() {
+            { printf 'PRAGMA foreign_keys = ON;\n'; cat; } | \
+              sqlite3 -batch -bail -noheader -init /dev/null "$database_file"
+          }
+          sql < src/main/resources/init-sqlite.sql
+          sql < src/main/resources/init-sqlite.sql
+          result="$(sql < .github/sql/schema-smoke.sql)"
+          printf '%s\n' "$result"
+          [[ "$result" == $'1\n64\n0' ]]
+
   build:
 
     runs-on: [ubuntu-latest, windows-latest]
