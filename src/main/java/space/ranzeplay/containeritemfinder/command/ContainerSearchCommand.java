@@ -21,12 +21,13 @@ public class ContainerSearchCommand {
         this.searchService = searchService;
     }
 
-    private void executeSearch(CommandSourceStack source, Level world, Vec3 pos, int range, Item item, int count) {
-        new Thread(() -> {
+    private void executeSearch(CommandContext<CommandSourceStack> context, Level world, Vec3 pos, int range, Item item, int count) {
+        var source = context.getSource();
+        CommandDiagnostics.runAsync(context, () -> {
             source.sendSystemMessage(Component.translatable("info.cif.status.searching"));
             Component result = searchService.searchChests(source, world, pos, range, item, count);
             source.sendSystemMessage(result);
-        }).start();
+        });
     }
 
     private int executeCommand(CommandContext<CommandSourceStack> context, int count) {
@@ -36,7 +37,7 @@ public class ContainerSearchCommand {
         var world = source.getLevel();
         var pos = source.getPosition();
         
-        executeSearch(source, world, pos, range, item.item().value(), count);
+        executeSearch(context, world, pos, range, item.item().value(), count);
         return 1;
     }
 
@@ -47,9 +48,9 @@ public class ContainerSearchCommand {
                     .then(LiteralArgumentBuilder.<CommandSourceStack>literal("search")
                         .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("range", IntegerArgumentType.integer(1))
                             .then(RequiredArgumentBuilder.<CommandSourceStack, ItemInput>argument("item", ItemArgument.item(registryAccess))
-                                .executes(context -> executeCommand(context, -1))
+                                .executes(CommandDiagnostics.logged(context -> executeCommand(context, -1)))
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("count", IntegerArgumentType.integer(1))
-                                    .executes(context -> executeCommand(context, IntegerArgumentType.getInteger(context, "count")))
+                                    .executes(CommandDiagnostics.logged(context -> executeCommand(context, IntegerArgumentType.getInteger(context, "count"))))
                                 )
                             )
                         )

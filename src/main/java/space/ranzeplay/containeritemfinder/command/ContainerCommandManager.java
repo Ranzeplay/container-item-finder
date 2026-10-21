@@ -28,12 +28,12 @@ public class ContainerCommandManager {
             dispatcher.register(
                 LiteralArgumentBuilder.<CommandSourceStack>literal("cif")
                     .then(LiteralArgumentBuilder.<CommandSourceStack>literal("cancel")
-                        .executes(context -> {
+                        .executes(CommandDiagnostics.logged(context -> {
                             var source = context.getSource();
                             Component result = searchService.cancelSearch(source);
                             source.sendSystemMessage(result);
                             return 1;
-                        }))
+                        })))
             );
         });
 

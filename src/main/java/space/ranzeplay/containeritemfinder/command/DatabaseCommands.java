@@ -6,7 +6,6 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.item.ItemArgument;
 import net.minecraft.commands.arguments.item.ItemInput;
@@ -25,16 +24,16 @@ public class DatabaseCommands {
                                     .then(RequiredArgumentBuilder.<CommandSourceStack, ItemInput>argument("item", ItemArgument.item(registryAccess))
                                             .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("count", IntegerArgumentType.integer(1))
                                                     .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("range", IntegerArgumentType.integer(1))
-                                                            .executes(this::executeSearch))
-                                                    .executes(this::executeSearch)
+                                                            .executes(CommandDiagnostics.logged(this::executeSearch)))
+                                                    .executes(CommandDiagnostics.logged(this::executeSearch))
                                             )
-                                            .executes(this::executeSearch)
+                                            .executes(CommandDiagnostics.logged(this::executeSearch))
                                     )
                             )
                             .then(LiteralArgumentBuilder.<CommandSourceStack>literal("stats")
-                                    .executes(this::executeStats))
+                                    .executes(CommandDiagnostics.logged(this::executeStats)))
                             .then(LiteralArgumentBuilder.<CommandSourceStack>literal("rescan")
-                                    .executes(this::rescan))
+                                    .executes(CommandDiagnostics.logged(this::rescan)))
             );
         });
     }
@@ -69,7 +68,7 @@ public class DatabaseCommands {
         } catch (IllegalArgumentException ignored) {
         }
 
-        Main.getTrackingService().searchTrackingItem((CommandSource) context.getSource(), context.getSource().getLevel(), context.getSource().getPosition(), range, item, count);
+        Main.getTrackingService().searchTrackingItem(context.getSource(), context.getSource().getLevel(), context.getSource().getPosition(), range, item, count);
 
         return 1;
     }

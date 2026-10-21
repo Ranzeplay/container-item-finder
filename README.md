@@ -99,6 +99,8 @@ Manually triggers a rescan of all tracking areas (requires operator permissions)
 - Faster response times for large areas
 - Historical data from the last scan
 
+Unexpected `/cif` and `/dif` command failures are logged on the server console with the full exception stack trace, command text, sender, dimension, and position. This also covers background search and index failures. The sender receives a message directing them to the server console for details; no client-side mod installation is needed for this logging.
+
 ## Configuration
 
 The mod uses a config file located at `run/config/cif.json`. Example:

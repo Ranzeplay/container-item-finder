@@ -21,19 +21,19 @@ public class ContainerIndexCommand {
                 LiteralArgumentBuilder.<CommandSourceStack>literal("cif")
                     .then(LiteralArgumentBuilder.<CommandSourceStack>literal("index")
                             .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("range", IntegerArgumentType.integer(1))
-                            .executes(context -> {
+                            .executes(CommandDiagnostics.logged(context -> {
                                 int range = IntegerArgumentType.getInteger(context, "range");
                                 var source = context.getSource();
                                 var world = source.getLevel();
                                 var pos = source.getPosition();
                                 
-                                new Thread(() -> {
+                                CommandDiagnostics.runAsync(context, () -> {
                                     source.sendSystemMessage(Component.translatable("info.cif.status.indexing"));
                                     Component result = indexService.indexContainers(source, world, pos, range);
                                     source.sendSystemMessage(result);
-                                }).start();
+                                });
                                 return 1;
-                            })
+                            }))
                         )
                     )
             );

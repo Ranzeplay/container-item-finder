@@ -3,7 +3,7 @@ package space.ranzeplay.containeritemfinder.service;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSource;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -127,7 +127,7 @@ public class TrackingService {
     }
 
     @SneakyThrows
-    public void searchTrackingItem(CommandSource commandSource, Level level, Vec3 center, Integer range, Item targetItem, Integer requiredCount) {
+    public void searchTrackingItem(CommandSourceStack commandSource, Level level, Vec3 center, Integer range, Item targetItem, Integer requiredCount) {
         try (PreparedStatement statement = connection.prepareStatement(
                 DatabaseType.searchSql(range != null, requiredCount != null))) {
             var itemId = targetItem.getDescriptionId();
