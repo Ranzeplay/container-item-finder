@@ -35,6 +35,50 @@ public enum DatabaseType {
         }
     }
 
+    private void migrateDimensionIndex(Connection connection) throws SQLException {
+        boolean legacyIndex = false;
+        try (var indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, "containers", true, false)) {
+            while (indexes.next()) {
+                if ("containers_x_y_z_key".equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
+                    legacyIndex = true;
+                    break;
+                }
+            }
+        }
+        if (!legacyIndex) {
+            return;
+        }
+        try (var statement = connection.createStatement()) {
+            if (this == MYSQL || this == MARIADB) {
+                // TEXT cannot be fully indexed on these backends. Keep the schema consistent
+                // with fresh databases and replace the old unique key in one ALTER.
+                statement.execute("ALTER TABLE containers MODIFY world VARCHAR(255) NOT NULL, "
+                        + "DROP INDEX containers_x_y_z_key, "
+                        + "ADD UNIQUE KEY containers_world_x_y_z_key (world, x, y, z)");
+            } else {
+                if (this == POSTGRESQL) {
+                    // Older versions created a constraint; later versions used a standalone index.
+                    statement.execute("ALTER TABLE containers DROP CONSTRAINT IF EXISTS containers_x_y_z_key");
+                }
+                statement.execute("DROP INDEX IF EXISTS containers_x_y_z_key");
+            }
+        }
+    }
+
+    private void warnAboutLegacyDimensions(Connection connection) throws SQLException {
+        try (var statement = connection.prepareStatement("SELECT COUNT(*) FROM containers WHERE world = ?")) {
+            statement.setString(1, "ResourceKey[minecraft:root / minecraft:dimension]");
+            try (var result = statement.executeQuery()) {
+                if (result.next() && result.getLong(1) > 0) {
+                    org.slf4j.LoggerFactory.getLogger("cif").warn(
+                            "Found {} legacy container records without a recoverable dimension. "
+                                    + "These records are retained but excluded from dimension searches. "
+                                    + "Run /dif rescan to rebuild the configured tracking areas.", result.getLong(1));
+                }
+            }
+        }
+    }
+
     public Connection connect(String url) throws SQLException {
         if (url == null || !url.startsWith(urlPrefix)) {
             throw new IllegalArgumentException("databaseConnectionString must start with " + urlPrefix + " for " + name());
@@ -73,14 +117,16 @@ public enum DatabaseType {
                 }
             }
         }
+        migrateDimensionIndex(connection);
+        warnAboutLegacyDimensions(connection);
     }
 
     public String containerUpsertSql() {
         String insert = "INSERT INTO containers (id, world, x, y, z, block) VALUES (?, ?, ?, ?, ?, ?) ";
         if (this == MYSQL || this == MARIADB) {
-            return insert + "ON DUPLICATE KEY UPDATE world = VALUES(world), block = VALUES(block)";
+            return insert + "ON DUPLICATE KEY UPDATE block = VALUES(block)";
         }
-        return insert + "ON CONFLICT (x, y, z) DO UPDATE SET world = EXCLUDED.world, block = EXCLUDED.block";
+        return insert + "ON CONFLICT (world, x, y, z) DO UPDATE SET block = EXCLUDED.block";
     }
 
     public void bindId(PreparedStatement statement, int index, UUID id) throws SQLException {

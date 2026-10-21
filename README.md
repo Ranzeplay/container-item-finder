@@ -147,6 +147,12 @@ For PostgreSQL, MySQL, and MariaDB, create the database first and use an account
 
 ## Development
 
+### Upgrading dimension storage
+
+Database initialization automatically upgrades container uniqueness to `(world, x, y, z)` so containers at the same coordinates in different dimensions remain separate. Dimensions are stored as identifiers such as `minecraft:overworld`.
+
+Older versions stored `ResourceKey[minecraft:root / minecraft:dimension]`, which does not identify the original dimension. These legacy records are retained but no longer match searches, and startup logs a warning when they exist. After upgrading, run `/dif rescan` as an operator to rebuild all configured tracking areas. Containers outside those areas must be scanned again when tracking updates them; dimensions cannot be recovered from the old string.
+
 ### Prerequisites
 
 - Java 25 or higher

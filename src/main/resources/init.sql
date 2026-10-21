@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS items
     container UUID REFERENCES containers (id) ON DELETE CASCADE
 );
 
--- A unique index supports ON CONFLICT (x, y, z) without repeatedly adding a constraint.
+-- Coordinates are unique within each dimension.
 -- Keep this non-concurrent because startup executes the script as a single JDBC statement.
-CREATE UNIQUE INDEX IF NOT EXISTS containers_x_y_z_key
-    ON containers (x, y, z);
+CREATE UNIQUE INDEX IF NOT EXISTS containers_world_x_y_z_key
+    ON containers (world, x, y, z);

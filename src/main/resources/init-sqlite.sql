@@ -16,4 +16,4 @@ CREATE TABLE IF NOT EXISTS items
     container TEXT REFERENCES containers (id) ON DELETE CASCADE
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS containers_x_y_z_key ON containers (x, y, z);
+CREATE UNIQUE INDEX IF NOT EXISTS containers_world_x_y_z_key ON containers (world, x, y, z);

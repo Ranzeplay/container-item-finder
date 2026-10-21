@@ -136,7 +136,7 @@ public class TrackingService {
             statement.setDouble(2, (int) center.y());
             statement.setDouble(3, (int) center.z());
             statement.setString(4, itemId);
-            statement.setString(5, level.dimension().registryKey().toString());
+            statement.setString(5, level.dimension().identifier().toString());
             if (range != null) {
                 statement.setDouble(6, (double) range * range);
             }
@@ -255,7 +255,7 @@ public class TrackingService {
         // Insert a new container or refresh the existing entry at these coordinates.
         try (var dbInsertStmt = connection.prepareStatement(databaseType.containerUpsertSql())) {
             databaseType.bindId(dbInsertStmt, 1, UUID.randomUUID());
-            dbInsertStmt.setString(2, level.dimension().registryKey().toString());
+            dbInsertStmt.setString(2, level.dimension().identifier().toString());
             dbInsertStmt.setInt(3, pos.getX());
             dbInsertStmt.setInt(4, pos.getY());
             dbInsertStmt.setInt(5, pos.getZ());
@@ -264,10 +264,11 @@ public class TrackingService {
         }
 
         UUID containerId;
-        try (var statement = connection.prepareStatement("SELECT id FROM containers WHERE x = ? AND y = ? AND z = ?")) {
+        try (var statement = connection.prepareStatement("SELECT id FROM containers WHERE x = ? AND y = ? AND z = ? AND world = ?")) {
             statement.setInt(1, pos.getX());
             statement.setInt(2, pos.getY());
             statement.setInt(3, pos.getZ());
+            statement.setString(4, level.dimension().identifier().toString());
             try (var result = statement.executeQuery()) {
                 if (!result.next()) {
                     return;
@@ -367,9 +368,9 @@ public class TrackingService {
             try {
                 Point p1 = new Point((int) (location.x() - radius), (int) (location.y() - radius), (int) (location.z() - radius));
                 Point p2 = new Point((int) (location.x() + radius), (int) (location.y() + radius), (int) (location.z() + radius));
-                AABB aabb = new AABB(p1, p2, level.dimension().registryKey().toString());
+                AABB aabb = new AABB(p1, p2, level.dimension().identifier().toString());
 
-                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.x(), location.y(), location.z()), level.dimension().registryKey());
+                logger.debug("Performing instant scan at {} @ {}", String.format("(%.1f, %.1f, %.1f)", location.x(), location.y(), location.z()), level.dimension().identifier());
                 scanAABB(server, aabb);
 
             } catch (SQLException e) {
@@ -429,7 +430,7 @@ public class TrackingService {
             var stmt = connection.prepareStatement(
                     "DELETE FROM containers WHERE world = ? AND x = ? AND y = ? AND z = ?"
             );
-            stmt.setString(1, level.dimension().registryKey().toString());
+            stmt.setString(1, level.dimension().identifier().toString());
             stmt.setInt(2, pos.getX());
             stmt.setInt(3, pos.getY());
             stmt.setInt(4, pos.getZ());

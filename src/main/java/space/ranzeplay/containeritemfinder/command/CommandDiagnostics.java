@@ -44,7 +44,7 @@ final class CommandDiagnostics {
     private static void logFailure(CommandContext<CommandSourceStack> context, Exception exception) {
         var source = context.getSource();
         Main.getLogger().error("Failed to execute command '{}' from '{}' in {} at {}",
-                context.getInput(), source.getTextName(), source.getLevel().dimension(),
+                context.getInput(), source.getTextName(), source.getLevel().dimension().identifier(),
                 source.getPosition(), exception);
     }
 }

@@ -4,9 +4,9 @@ CREATE TABLE IF NOT EXISTS containers
     x INT NOT NULL,
     y INT NOT NULL,
     z INT NOT NULL,
-    world TEXT NOT NULL,
+    world VARCHAR(255) NOT NULL,
     block TEXT NOT NULL,
-    UNIQUE KEY containers_x_y_z_key (x, y, z)
+    UNIQUE KEY containers_world_x_y_z_key (world, x, y, z)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS items
